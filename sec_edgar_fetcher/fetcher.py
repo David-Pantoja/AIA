@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from .utils import rate_limited, retry_on_http_error
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 
 load_dotenv()
 
@@ -41,6 +42,7 @@ class SECFetcher:
     @retry_on_http_error
     def get_submissions(self, cik: str) -> List[Dict]:
         """Fetch submission metadata for a given CIK."""
+        # First get the company's filing history
         url = f"https://www.sec.gov/Archives/edgar/data/{cik}/index.json"
         print(f"Requesting URL: {url}")
         response = requests.get(url, headers=self.headers, timeout=10)
@@ -52,35 +54,123 @@ class SECFetcher:
             items = data.get("directory", {}).get("item", [])
             print(f"Found {len(items)} items in directory")
             
-            # Sort items by name (which contains the date) in reverse order
-            items.sort(key=lambda x: x.get("name", ""), reverse=True)
+            # Sort items by last-modified date in reverse order
+            items.sort(key=lambda x: x.get("last-modified", ""), reverse=True)
             
-            # Only process the first 10 items (most recent filings)
+            # Process more items to find more filings
             submissions = []
-            for i, item in enumerate(items[:10]):
-                print(f"Processing item {i+1}/10")
+            current_date = datetime.now()
+            
+            for i, item in enumerate(items[:50]):  # Increased from 10 to 50
+                print(f"\nProcessing item {i+1}/50")
+                print(f"Item data: {item}")
+                
                 if item.get("type") == "folder.gif":
                     accession_number = item.get("name")
-                    if accession_number:
+                    last_modified = item.get("last-modified", "")
+                    
+                    if accession_number and last_modified:
                         try:
-                            # Accession number format: YYYYMMDD-XXXXXX-XXXXXX
-                            # Extract date from the first part (YYYYMMDD)
-                            date_str = accession_number.split('-')[0]
-                            year = int(date_str[:4])
-                            month = int(date_str[4:6])
-                            day = int(date_str[6:8])
-                            
-                            print(f"Found filing from {year}-{month}-{day}")
-                            if year >= 2023:  # Only include recent filings
-                                submissions.append({
-                                    "form": "10-Q",
-                                    "filingDate": f"{year}-{month:02d}-{day:02d}",
-                                    "accessionNumber": accession_number
-                                })
+                            # Parse the last-modified date
+                            # Format: "YYYY-MM-DD HH:MM:SS"
+                            date_parts = last_modified.split()[0].split('-')
+                            if len(date_parts) == 3:
+                                year = int(date_parts[0])
+                                month = int(date_parts[1])
+                                day = int(date_parts[2])
+                                
+                                # Skip future dates and invalid dates
+                                filing_date = datetime(year, month, day)
+                                
+                                # For 2025 filings, only skip if the date is in the future
+                                if year == 2025:
+                                    if filing_date > current_date:
+                                        print(f"Skipping future 2025 date: {year}-{month:02d}-{day:02d}")
+                                        continue
+                                # For other years, skip if before 2023
+                                elif year < 2023:
+                                    print(f"Skipping old date: {year}-{month:02d}-{day:02d}")
+                                    continue
+                                
+                                # Get the form type from the filing metadata
+                                form_type = None
+                                form_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/index.json"
+                                print(f"Requesting form metadata from: {form_url}")
+                                
+                                form_response = requests.get(form_url, headers=self.headers, timeout=10)
+                                print(f"Form metadata status code: {form_response.status_code}")
+                                
+                                if form_response.status_code == 200:
+                                    form_data = form_response.json()
+                                    form_items = form_data.get("directory", {}).get("item", [])
+                                    print(f"Found {len(form_items)} items in form directory")
+                                    
+                                    # First try to get form type from the main document
+                                    main_doc = None
+                                    for form_item in form_items:
+                                        name = form_item.get("name", "").lower()
+                                        if name.endswith('.txt') and not name.endswith('-index.txt'):
+                                            main_doc = name
+                                            break
+                                    
+                                    if main_doc:
+                                        doc_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{main_doc}"
+                                        doc_response = requests.get(doc_url, headers=self.headers, timeout=10)
+                                        if doc_response.status_code == 200:
+                                            doc_content = doc_response.text
+                                            if "CONFORMED SUBMISSION TYPE: 8-K" in doc_content:
+                                                form_type = "8-K"
+                                            elif "CONFORMED SUBMISSION TYPE: 10-K" in doc_content:
+                                                form_type = "10-K"
+                                            elif "CONFORMED SUBMISSION TYPE: 10-Q" in doc_content:
+                                                form_type = "10-Q"
+                                    
+                                    # If no form type found in main document, try file patterns
+                                    if not form_type:
+                                        for form_item in form_items:
+                                            name = form_item.get("name", "").lower()
+                                            print(f"Checking form item: {name}")
+                                            # More comprehensive file pattern matching
+                                            if any(pattern in name for pattern in ['_8k.htm', '_8k_htm.xml', '8-k', '8k']):
+                                                form_type = "8-K"
+                                                break
+                                            elif any(pattern in name for pattern in ['_10k.htm', '_10k_htm.xml', '10-k', '10k']):
+                                                form_type = "10-K"
+                                                break
+                                            elif any(pattern in name for pattern in ['_10q.htm', '_10q_htm.xml', '10-q', '10q']):
+                                                form_type = "10-Q"
+                                                break
+                                    
+                                    # If still no form type, try index file
+                                    if not form_type:
+                                        for form_item in form_items:
+                                            name = form_item.get("name", "").lower()
+                                            if name.endswith('-index.txt'):
+                                                index_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{name}"
+                                                index_response = requests.get(index_url, headers=self.headers, timeout=10)
+                                                if index_response.status_code == 200:
+                                                    index_content = index_response.text
+                                                    if "CONFORMED SUBMISSION TYPE: 8-K" in index_content:
+                                                        form_type = "8-K"
+                                                        break
+                                                    elif "CONFORMED SUBMISSION TYPE: 10-K" in index_content:
+                                                        form_type = "10-K"
+                                                        break
+                                                    elif "CONFORMED SUBMISSION TYPE: 10-Q" in index_content:
+                                                        form_type = "10-Q"
+                                                        break
+                                
+                                print(f"Found {form_type} filing from {year}-{month:02d}-{day:02d}")
+                                if form_type in ["10-K", "10-Q", "8-K"]:  # Only include valid form types
+                                    submissions.append({
+                                        "form_type": form_type,
+                                        "filing_date": f"{year}-{month:02d}-{day:02d}",
+                                        "accession_number": accession_number
+                                    })
                         except (ValueError, IndexError) as e:
-                            print(f"Error parsing accession number {accession_number}: {e}")
+                            print(f"Error parsing data for accession number {accession_number}: {e}")
                             continue
-            print(f"Found {len(submissions)} valid submissions")
+            print(f"\nFound {len(submissions)} valid submissions")
             return submissions
         except requests.exceptions.JSONDecodeError as e:
             print(f"Submissions JSON Decode Error: {e}")
@@ -140,16 +230,24 @@ class SECFetcher:
         if not cik:
             return []
 
+        # Get all submissions once
         submissions = self.get_submissions(cik)
+        print(f"\nFound {len(submissions)} total submissions")
+        
+        # Filter by filing type and process only those
         filings = []
         for submission in submissions:
-            if submission["form"] == filing_type:
-                accession_number = submission["accessionNumber"]
+            if submission["form_type"] == filing_type:
+                accession_number = submission["accession_number"]
                 if accession_number:
+                    print(f"\nProcessing {filing_type} filing from {submission['filing_date']}")
                     document = self.get_filing_document(cik, accession_number)
                     filings.append({
                         "accession_number": accession_number,
-                        "filing_date": submission["filingDate"],
+                        "filing_date": submission["filing_date"],
+                        "form_type": filing_type,  # Add form_type to the output
                         "document": document
                     })
+        
+        print(f"\nFound {len(filings)} {filing_type} filings")
         return filings 

@@ -10,7 +10,7 @@ load_dotenv()
 # Replace with your OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-def parse_filing_document(document: str) -> Dict:
+def parse_filing_document(document: str, form_type: str) -> Dict:
     """Parse a filing document using the OpenAI document API to extract key financial data."""
     try:
         if not document:
@@ -22,15 +22,22 @@ def parse_filing_document(document: str) -> Dict:
             print("Error: OpenAI API key not found in environment variables")
             return {}
 
-        # Prepare the prompt for the OpenAI API
-        prompt = f"""Extract the following key financial data from the following SEC filing document.
+        # Truncate document to first 4000 characters to stay within token limits
+        truncated_doc = document[:4000] + "..."
+        
+        # Prepare the prompt based on filing type
+        base_prompt = f"""Extract the following key financial data from the following SEC {form_type} filing document.
 Please provide all monetary values in billions (B) with 2 decimal places.
 For example: 123.45B for 123.45 billion.
 
 Document:
-{document}
+{truncated_doc}
 
-Please provide the following information in JSON format:
+Please provide the following information in JSON format:"""
+
+        # Customize prompt based on filing type
+        if form_type in ["10-K", "10-Q"]:
+            prompt = base_prompt + """
 - Revenue (in billions)
 - Net Income (in billions)
 - EPS (earnings per share)
@@ -39,6 +46,18 @@ Please provide the following information in JSON format:
 - Liabilities (in billions)
 - Management Discussion & Analysis summary (2-3 sentences)
 - Risk Factors summary (2-3 sentences)"""
+        elif form_type == "8-K":
+            prompt = base_prompt + """
+- Event Type
+- Event Date
+- Event Description (2-3 sentences)
+- Financial Impact (if any)
+- Key Takeaways (2-3 sentences)"""
+        else:
+            prompt = base_prompt + """
+- Key Information (2-3 sentences)
+- Financial Impact (if any)
+- Important Details (2-3 sentences)"""
 
         print("Sending request to OpenAI API...")
         try:
@@ -72,13 +91,16 @@ Please provide the following information in JSON format:
                 print(f"Raw response: {content}")
                 return {}
 
-        except openai.error.AuthenticationError:
-            print("Error: Invalid OpenAI API key")
+        except openai.BadRequestError as e:
+            print(f"OpenAI API error: {e}")
             return {}
-        except openai.error.RateLimitError:
-            print("Error: OpenAI API rate limit exceeded")
+        except openai.AuthenticationError as e:
+            print(f"OpenAI API authentication error: {e}")
             return {}
-        except openai.error.APIError as e:
+        except openai.RateLimitError as e:
+            print(f"OpenAI API rate limit error: {e}")
+            return {}
+        except openai.APIError as e:
             print(f"OpenAI API error: {e}")
             return {}
 
@@ -93,9 +115,11 @@ def parse_filings(filings: List[Dict]) -> List[Dict]:
     """Parse a list of filing documents and return structured data."""
     parsed_filings = []
     for filing in filings:
-        parsed_data = parse_filing_document(filing["document"])
+        parsed_data = parse_filing_document(filing["document"], filing.get("form_type", "Unknown"))
         parsed_filings.append({
             "accession_number": filing["accession_number"],
+            "filing_date": filing["filing_date"],
+            "form_type": filing.get("form_type", "Unknown"),
             "financials": parsed_data
         })
     return parsed_filings 
