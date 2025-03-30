@@ -24,8 +24,8 @@ class SECFetcher:
         """Fetch CIK for a given ticker symbol."""
         url = "https://www.sec.gov/files/company_tickers.json"
         response = requests.get(url, headers=self.headers)
-        print(f"Status Code: {response.status_code}")
-        print(f"Response Content: {response.text[:200]}")  # Print first 200 chars
+        # print(f"Status Code: {response.status_code}")
+        # print(f"Response Content: {response.text[:200]}")  # Print first 200 chars
         if response.status_code != 200:
             return None
         try:
@@ -40,13 +40,13 @@ class SECFetcher:
 
     @rate_limited
     @retry_on_http_error
-    def get_submissions(self, cik: str) -> List[Dict]:
+    def get_submissions(self, cik: str, max_items: int = 50) -> List[Dict]:
         """Fetch submission metadata for a given CIK."""
         # First get the company's filing history
         url = f"https://www.sec.gov/Archives/edgar/data/{cik}/index.json"
-        print(f"Requesting URL: {url}")
+        # print(f"Requesting URL: {url}")
         response = requests.get(url, headers=self.headers, timeout=10)
-        print(f"Submissions Status Code: {response.status_code}")
+        # print(f"Submissions Status Code: {response.status_code}")
         if response.status_code != 200:
             return []
         try:
@@ -61,9 +61,9 @@ class SECFetcher:
             submissions = []
             current_date = datetime.now()
             
-            for i, item in enumerate(items[:50]):  # Increased from 10 to 50
-                print(f"\nProcessing item {i+1}/50")
-                print(f"Item data: {item}")
+            for i, item in enumerate(items[:max_items]):  # Use max_items parameter
+                # print(f"\nProcessing item {i+1}/{max_items}")
+                # print(f"Item data: {item}")
                 
                 if item.get("type") == "folder.gif":
                     accession_number = item.get("name")
@@ -95,15 +95,15 @@ class SECFetcher:
                                 # Get the form type from the filing metadata
                                 form_type = None
                                 form_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/index.json"
-                                print(f"Requesting form metadata from: {form_url}")
+                                # print(f"Requesting form metadata from: {form_url}")
                                 
                                 form_response = requests.get(form_url, headers=self.headers, timeout=10)
-                                print(f"Form metadata status code: {form_response.status_code}")
+                                # print(f"Form metadata status code: {form_response.status_code}")
                                 
                                 if form_response.status_code == 200:
                                     form_data = form_response.json()
                                     form_items = form_data.get("directory", {}).get("item", [])
-                                    print(f"Found {len(form_items)} items in form directory")
+                                    # print(f"Found {len(form_items)} items in form directory")
                                     
                                     # First try to get form type from the main document
                                     main_doc = None
@@ -129,7 +129,7 @@ class SECFetcher:
                                     if not form_type:
                                         for form_item in form_items:
                                             name = form_item.get("name", "").lower()
-                                            print(f"Checking form item: {name}")
+                                            # print(f"Checking form item: {name}")
                                             # More comprehensive file pattern matching
                                             if any(pattern in name for pattern in ['_8k.htm', '_8k_htm.xml', '8-k', '8k']):
                                                 form_type = "8-K"
@@ -184,15 +184,15 @@ class SECFetcher:
         url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number.replace('-', '')}/index.json"
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
-            print(f"Document index Status Code: {response.status_code}")
+            # print(f"Document index Status Code: {response.status_code}")
             data = response.json()
             items = data.get("directory", {}).get("item", [])
-            print(f"Found {len(items)} items in filing directory")
+            # print(f"Found {len(items)} items in filing directory")
             
             # Print all available files for debugging
-            print("Available files in directory:")
-            for item in items:
-                print(f"- {item.get('name', '')} (type: {item.get('type', '')})")
+            # print("Available files in directory:")
+            # for item in items:
+            #     print(f"- {item.get('name', '')} (type: {item.get('type', '')})")
             
             # Look for the main filing document (the .txt file)
             document_url = None
@@ -201,16 +201,16 @@ class SECFetcher:
                 if name.endswith('.txt') and not name.endswith('-index.txt'):
                     # Construct the full URL for the document
                     document_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number.replace('-', '')}/{name}"
-                    print(f"Found matching document: {name}")
+                    # print(f"Found matching document: {name}")
                     break
             
             if document_url:
-                print(f"Found document URL: {document_url}")
+                # print(f"Found document URL: {document_url}")
                 response = requests.get(document_url, headers=self.headers, timeout=10)
-                print(f"Document content Status Code: {response.status_code}")
+                # print(f"Document content Status Code: {response.status_code}")
                 if response.status_code == 200:
-                    print(f"Document content preview: {response.text[:200]}")
-                return response.text
+                    # print(f"Document content preview: {response.text[:200]}")
+                    return response.text
             else:
                 print("No document URL found")
             return ""

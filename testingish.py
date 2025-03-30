@@ -44,6 +44,7 @@ def print_filing_results(filing):
 ticker = "AAPL"  # Replace with your desired ticker
 filing_types = ["10-K", "10-Q", "8-K"]  # List of filing types to fetch
 date_range = ("2023-01-01", "2023-12-31")  # Optional date range
+max_files_to_check = 50  # Configure how many files to check
 
 # Create a single fetcher instance
 fetcher = SECFetcher()
@@ -53,8 +54,9 @@ if not cik:
     exit(1)
 
 # Get all submissions once
-submissions = fetcher.get_submissions(cik)
+submissions = fetcher.get_submissions(cik, max_items=max_files_to_check)
 print(f"\nFound {len(submissions)} total submissions")
+print(f"Checked up to {max_files_to_check} most recent files")
 
 # Process all filings at once
 all_filings = []
