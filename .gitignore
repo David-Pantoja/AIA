@@ -1,2 +1,3 @@
 .env
 /aia
+__pycache__

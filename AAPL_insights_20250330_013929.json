@@ -1,0 +1,32 @@
+{
+  "ticker": "AAPL",
+  "filing_date": "2025-01-31",
+  "generated_at": "2025-03-30T01:39:29.598591",
+  "insights": {
+    "summary": "Apple Inc. (AAPL) has a market price of $241.84 (as of 2025-01-31) which is above its 20-day and 50-day simple moving averages, indicating a positive trend. The Relative Strength Index (RSI) is 53.48, which suggests the stock is neither overbought nor oversold. The Moving Average Convergence Divergence (MACD) is 1.92, indicating bullish momentum. The Bollinger Bands indicate a range of $235.06 (lower) to $250.40 (upper). The stock witnessed a marginal price increase of 1.28% post-filing, albeit on lower volumes. The company's most recent quarterly revenue was $123.45B and its annual revenue was $365.72B.",
+    "financial_health": "Given the large revenue figures, Apple Inc. appears to be in good financial health, though it would be beneficial to have more specific details like net income, earnings per share, cash flow and balance sheet information for a more comprehensive analysis. As an additional note, the submission of matters to a vote of security holders does not have a direct financial impact but could be an indicator of corporate governance.",
+    "recommendation": {
+      "action": "Hold",
+      "buy_probability": 0.4,
+      "hold_probability": 0.5,
+      "sell_probability": 0.1,
+      "confidence_level": 0.7
+    },
+    "risk_factors": [
+      "Market volatility",
+      "Regulatory and legal risks",
+      "Product demand and competition risks",
+      "Potential governance issues due to matters submitted to a vote of security holders"
+    ],
+    "technical_analysis": {
+      "trend": "Bullish, as the price is above both 20-day and 50-day SMAs",
+      "momentum": "Bullish, as indicated by positive MACD",
+      "support_resistance": "Support at lower Bollinger Band ($235.06) and resistance at upper Bollinger Band ($250.40)"
+    },
+    "market_sentiment": {
+      "analyst_consensus": "Unavailable due to lack of analyst ratings",
+      "price_momentum": "Positive, with a 1.28% increase post-filing",
+      "volume_trend": "Negative, with a 52.49% decrease in volume post-filing"
+    }
+  }
+}

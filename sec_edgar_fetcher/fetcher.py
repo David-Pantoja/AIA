@@ -44,9 +44,7 @@ class SECFetcher:
         """Fetch submission metadata for a given CIK."""
         # First get the company's filing history
         url = f"https://www.sec.gov/Archives/edgar/data/{cik}/index.json"
-        # print(f"Requesting URL: {url}")
         response = requests.get(url, headers=self.headers, timeout=10)
-        # print(f"Submissions Status Code: {response.status_code}")
         if response.status_code != 200:
             return []
         try:
@@ -61,10 +59,7 @@ class SECFetcher:
             submissions = []
             current_date = datetime.now()
             
-            for i, item in enumerate(items[:max_items]):  # Use max_items parameter
-                # print(f"\nProcessing item {i+1}/{max_items}")
-                # print(f"Item data: {item}")
-                
+            for i, item in enumerate(items[:max_items]):
                 if item.get("type") == "folder.gif":
                     accession_number = item.get("name")
                     last_modified = item.get("last-modified", "")
@@ -72,7 +67,6 @@ class SECFetcher:
                     if accession_number and last_modified:
                         try:
                             # Parse the last-modified date
-                            # Format: "YYYY-MM-DD HH:MM:SS"
                             date_parts = last_modified.split()[0].split('-')
                             if len(date_parts) == 3:
                                 year = int(date_parts[0])
@@ -95,15 +89,12 @@ class SECFetcher:
                                 # Get the form type from the filing metadata
                                 form_type = None
                                 form_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/index.json"
-                                # print(f"Requesting form metadata from: {form_url}")
                                 
                                 form_response = requests.get(form_url, headers=self.headers, timeout=10)
-                                # print(f"Form metadata status code: {form_response.status_code}")
                                 
                                 if form_response.status_code == 200:
                                     form_data = form_response.json()
                                     form_items = form_data.get("directory", {}).get("item", [])
-                                    # print(f"Found {len(form_items)} items in form directory")
                                     
                                     # First try to get form type from the main document
                                     main_doc = None
@@ -129,8 +120,6 @@ class SECFetcher:
                                     if not form_type:
                                         for form_item in form_items:
                                             name = form_item.get("name", "").lower()
-                                            # print(f"Checking form item: {name}")
-                                            # More comprehensive file pattern matching
                                             if any(pattern in name for pattern in ['_8k.htm', '_8k_htm.xml', '8-k', '8k']):
                                                 form_type = "8-K"
                                                 break
@@ -160,7 +149,6 @@ class SECFetcher:
                                                         form_type = "10-Q"
                                                         break
                                 
-                                print(f"Found {form_type} filing from {year}-{month:02d}-{day:02d}")
                                 if form_type in ["10-K", "10-Q", "8-K"]:  # Only include valid form types
                                     submissions.append({
                                         "form_type": form_type,
@@ -234,20 +222,20 @@ class SECFetcher:
         submissions = self.get_submissions(cik)
         print(f"\nFound {len(submissions)} total submissions")
         
-        # Filter by filing type and process only those
+        # Process all submissions in a single pass
         filings = []
         for submission in submissions:
-            if submission["form_type"] == filing_type:
+            # If filing_type is "ALL" or matches the requested type, process it
+            if filing_type == "ALL" or submission["form_type"] == filing_type:
                 accession_number = submission["accession_number"]
                 if accession_number:
-                    print(f"\nProcessing {filing_type} filing from {submission['filing_date']}")
                     document = self.get_filing_document(cik, accession_number)
                     filings.append({
                         "accession_number": accession_number,
                         "filing_date": submission["filing_date"],
-                        "form_type": filing_type,  # Add form_type to the output
+                        "form_type": submission["form_type"],
                         "document": document
                     })
         
-        print(f"\nFound {len(filings)} {filing_type} filings")
+        print(f"\nProcessed {len(filings)} {filing_type if filing_type != 'ALL' else 'total'} filings")
         return filings 
