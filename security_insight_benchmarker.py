@@ -75,9 +75,10 @@ def process_ticker(ticker: str) -> Dict:
     # Count quarterly reports if SEC data is available
     if USE_SEC and "filings" in insight:
         result["quarterly_reports_found"] = sum(
-            1 for f in insight["filings"]
+            1 for f in insight.get("filings", [])
             if f.get("form_type") in ["10-Q", "10-K"]
         )
+        print(f"Found {result['quarterly_reports_found']} quarterly reports for {ticker}")
     
     # Get yfinance comparison if available
     if USE_YFINANCE and "yfinance_comparison" in insight:

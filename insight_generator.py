@@ -1,3 +1,4 @@
+#single stock insight generator
 import json
 import logging
 from typing import Dict, List, Optional
@@ -209,20 +210,30 @@ Format your response as JSON with the following structure:
             # Create analysis prompt
             prompt = self._create_analysis_prompt(financial_data, ticker)
 
-            # Get GPT analysis
+            # Get GPT-4 analysis for insights
             response = openai.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini-2024-07-18",
                 messages=[
-                    {"role": "system", "content": "You are a financial analyst assistant. Always respond with valid JSON."},
+                    {"role": "system", "content": """You are an expert financial analyst with deep knowledge of market analysis, 
+                    technical indicators, and fundamental analysis. Your task is to provide comprehensive investment insights 
+                    based on the provided data. Always respond with valid JSON and ensure all probabilities sum to 1.0."""},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=1000
+                temperature=0.7,  # Slightly higher temperature for more nuanced analysis
+                max_tokens=2000,  # Increased for more detailed analysis
+                presence_penalty=0.6,  # Encourage diverse analysis
+                frequency_penalty=0.6  # Reduce repetition
             )
 
             # Parse the response
             try:
                 content = response.choices[0].message.content.strip()
-                logger.info(f"Raw GPT response: {content[:200]}...")  # Log first 200 chars
+                logger.info(f"Raw GPT-4 response: {content[:200]}...")  # Log first 200 chars
+                
+                # Extract JSON from markdown code blocks if present
+                if content.startswith("```"):
+                    # Remove markdown code block markers
+                    content = content.replace("```json", "").replace("```", "").strip()
                 
                 # Try to parse the response as JSON
                 analysis = json.loads(content)
@@ -242,6 +253,22 @@ Format your response as JSON with the following structure:
                     logger.error(f"Missing required fields in recommendation: {missing_rec_fields}")
                     return {}
                 
+                # Validate probability distribution
+                probs = {
+                    "buy": recommendation.get("buy_probability", 0),
+                    "hold": recommendation.get("hold_probability", 0),
+                    "sell": recommendation.get("sell_probability", 0)
+                }
+                total = sum(probs.values())
+                if abs(total - 1.0) > 0.0001:
+                    logger.warning(f"Probabilities do not sum to 1.0 (sum: {total})")
+                    # Normalize probabilities
+                    for key in probs:
+                        probs[key] /= total
+                    recommendation["buy_probability"] = probs["buy"]
+                    recommendation["hold_probability"] = probs["hold"]
+                    recommendation["sell_probability"] = probs["sell"]
+                
                 # If yfinance is enabled, validate against analyst ratings
                 if self.use_yfinance and financial_data.get("analyst_ratings"):
                     yf_ratings = financial_data["analyst_ratings"]
@@ -249,7 +276,7 @@ Format your response as JSON with the following structure:
                     total_ratings = sum(raw_recommendations.values())
                     
                     if total_ratings > 0:
-                        # Calculate probabilities for all 5 ratings
+                        # Calculate yfinance probabilities
                         yf_probs = {
                             "strongBuy": raw_recommendations.get("strongBuy", 0) / total_ratings,
                             "buy": raw_recommendations.get("buy", 0) / total_ratings,
@@ -258,33 +285,32 @@ Format your response as JSON with the following structure:
                             "strongSell": raw_recommendations.get("strongSell", 0) / total_ratings
                         }
                         
-                        # Map model probabilities to the 5 ratings
-                        model_probs = {
-                            "strongBuy": analysis["recommendation"]["buy_probability"] * 0.3,  # 30% of buy probability
-                            "buy": analysis["recommendation"]["buy_probability"] * 0.7,      # 70% of buy probability
-                            "hold": analysis["recommendation"]["hold_probability"],
-                            "sell": analysis["recommendation"]["sell_probability"] * 0.7,    # 70% of sell probability
-                            "strongSell": analysis["recommendation"]["sell_probability"] * 0.3  # 30% of sell probability
-                        }
-                        
                         # Add yfinance comparison to the analysis
                         analysis["yfinance_comparison"] = {
                             "yfinance_probabilities": yf_probs,
-                            "model_probabilities": model_probs,
-                            "difference": {
-                                k: model_probs[k] - yf_probs[k] for k in yf_probs.keys()
+                            "model_probabilities": {
+                                "strongBuy": recommendation["buy_probability"] * 0.6,
+                                "buy": recommendation["buy_probability"] * 0.4,
+                                "hold": recommendation["hold_probability"],
+                                "sell": recommendation["sell_probability"] * 0.4,
+                                "strongSell": recommendation["sell_probability"] * 0.6
                             }
                         }
                 
+                # Add metadata
+                analysis["ticker"] = ticker
+                analysis["generated_at"] = datetime.now().isoformat()
+                if financial_data.get("filings"):
+                    analysis["filing_date"] = financial_data["filings"][0]["filing_date"]
+                    analysis["filings"] = financial_data["filings"]  # Include all filings in the analysis
+                
                 return analysis
+                
             except json.JSONDecodeError as e:
-                logger.error(f"Error parsing GPT response: {str(e)}")
+                logger.error(f"Failed to parse GPT response as JSON: {e}")
                 logger.error(f"Raw response content: {content}")
                 return {}
-            except Exception as e:
-                logger.error(f"Unexpected error processing GPT response: {str(e)}")
-                return {}
-
+                
         except Exception as e:
             logger.error(f"Error generating insight: {str(e)}")
             return {}
