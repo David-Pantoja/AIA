@@ -1,3 +1,0 @@
-ticker,quarterly_reports_found,mse,yfinance_probabilities,model_probabilities
-AAPL,4,0.04080345785183195,"{'strongBuy': 0.16393442622950818, 'buy': 0.47540983606557374, 'hold': 0.28415300546448086, 'sell': 0.03825136612021858, 'strongSell': 0.03825136612021858}","{'strongBuy': 0.15, 'buy': 0.1, 'hold': 0.5, 'sell': 0.1, 'strongSell': 0.15}"
-MSFT,4,0.10019063020214032,"{'strongBuy': 0.2413793103448276, 'buy': 0.6724137931034483, 'hold': 0.08620689655172414, 'sell': 0.0, 'strongSell': 0.0}","{'strongBuy': 0.18, 'buy': 0.12, 'hold': 0.5, 'sell': 0.08000000000000002, 'strongSell': 0.12}"

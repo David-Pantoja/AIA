@@ -1,3 +1,5 @@
+# This is a sample script to test the insight generator.
+
 import os
 from dotenv import load_dotenv
 from insight_generator import InsightGenerator

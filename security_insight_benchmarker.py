@@ -14,14 +14,37 @@ MAX_SEARCH = 300  # Maximum number of search iterations
 
 # List of tickers to benchmark
 TICKERS = [
-    "AAPL","MSFT",
-     
- ] 
-tmp = ["GOOGL", "AMZN", "META", # Tech
-    "JPM", "BAC", "GS", "MS", "V",  # Financials
-    "JNJ", "PFE", "UNH", "MRK", "ABBV",  # Healthcare
-    "XOM", "CVX", "COP", "SLB", "EOG",  # Energy
-    "PG", "KO", "WMT", "MCD", "DIS"  # Consumer
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META",  # Tech - Large Cap
+    "NVDA", "AMD", "INTC", "TSM", "MU",  # Semiconductors
+    "CRM", "ADBE", "ORCL", "IBM", "SAP",  # Enterprise Software
+    "CSCO", "AVGO", "QCOM", "TXN", "NXPI",  # Networking/Hardware
+    "PYPL", "SQ", "ADYEY", "V", "MA",  # Fintech
+    
+    "JPM", "BAC", "GS", "MS", "WFC",  # Banking
+    "BLK", "BX", "KKR", "C", "AXP",  # Financial Services
+    "PGR", "ALL", "TRV", "CB", "MET",  # Insurance
+    
+    "JNJ", "PFE", "UNH", "MRK", "ABBV",  # Healthcare/Pharma
+    "MDT", "TMO", "DHR", "ABT", "ISRG",  # Medical Devices/Equipment
+    
+    "XOM", "CVX", "COP", "SLB", "EOG",  # Oil & Gas
+    "NEE", "DUK", "SO", "AEP", "PCG",  # Utilities
+    
+    "PG", "KO", "WMT", "MCD", "DIS",  # Consumer Staples/Entertainment
+    "NKE", "SBUX", "LULU", "TGT", "HD",  # Retail
+    "PEP", "KHC", "GIS", "K", "CAG",  # Food & Beverage
+    
+    "TSLA", "GM", "F", "TM", "VWAGY",  # Auto
+    "BA", "LMT", "RTX", "GE", "HON",  # Aerospace/Industrial
+    
+    "NFLX", "CMCSA", "CHTR", "ROKU", "SPOT",  # Media/Streaming
+    "T", "VZ", "TMUS", "LBRDK", "DISH",  # Telecom
+    
+    "AMGN", "GILD", "BIIB", "MRNA", "REGN",  # Biotech
+    "ABNB", "UBER", "LYFT", "DASH", "BKNG",  # Travel/Mobility
+    
+    "TWLO", "NET", "ZS", "OKTA", "CRWD",  # Cloud Security
+    "NOW", "TEAM", "ZM", "DOCU", "WDAY"   # SaaS
 ]
 
 def validate_probability_distribution(probs: Dict[str, float]) -> bool:
@@ -42,7 +65,7 @@ def calculate_mse(yf_probs: Dict[str, float], model_probs: Dict[str, float]) -> 
     return mse / 5  # Divide by number of actions
 
 def process_ticker(ticker: str) -> Dict:
-    """Process a single ticker and return results."""
+    """Process a single ticker and return results including standard and blind analysis."""
     print(f"\nProcessing {ticker}")
     
     # Initialize the insight generator
@@ -52,7 +75,8 @@ def process_ticker(ticker: str) -> Dict:
         use_SEC=USE_SEC
     )
     
-    # Generate insight
+    # --- Standard Insight Generation ---
+    print("\nGenerating standard insight...")
     insight = generator.generate_insight(
         ticker,
         quarters=QUARTERS,
@@ -60,36 +84,82 @@ def process_ticker(ticker: str) -> Dict:
     )
     
     if not insight:
-        print(f"Failed to generate insights for {ticker}")
-        return None
+        print(f"Failed to generate standard insights for {ticker}")
+        return None # Return None if standard insight fails
     
-    # Extract relevant data
+    # --- Blind Insight Generation ---
+    print("\nGenerating blind insight...")
+    blind_insight = generator.generate_insight(
+        ticker,
+        quarters=0,  # No quarters needed for blind
+        max_search=0, # No search needed for blind
+        use_SEC_override=False,
+        use_yfinance_override=False
+    )
+
+    if not blind_insight:
+        print(f"Warning: Failed to generate blind insights for {ticker}. Proceeding without blind data.")
+        blind_model_probs = None
+        blind_mse = None
+    else:
+        # Extract blind probabilities
+        blind_recommendation = blind_insight.get("recommendation", {})
+        blind_model_probs = {
+            "strongBuy": blind_recommendation.get("buy_probability", 0) * 0.6, # Apportion based on confidence maybe?
+            "buy": blind_recommendation.get("buy_probability", 0) * 0.4,
+            "hold": blind_recommendation.get("hold_probability", 0),
+            "sell": blind_recommendation.get("sell_probability", 0) * 0.4,
+            "strongSell": blind_recommendation.get("sell_probability", 0) * 0.6
+        }
+        # Normalize blind probabilities after apportionment
+        total_blind_prob = sum(blind_model_probs.values())
+        if total_blind_prob > 0:
+             blind_model_probs = {k: v / total_blind_prob for k, v in blind_model_probs.items()}
+        else:
+             blind_model_probs = {k: 0.0 for k in blind_model_probs}
+
+
+    # Initialize result dict
     result = {
         "ticker": ticker,
-        "model_probabilities": {},
+        "model_probabilities": None,
         "mse": None,
         "yfinance_probabilities": None,
-        "quarterly_reports_found": 0
+        "quarterly_reports_found": 0,
+        "blind_model_probabilities": blind_model_probs, # Initialize with potentially None
+        "blind_mse": None
     }
     
-    # Count quarterly reports if SEC data is available
-    if USE_SEC and "filings" in insight:
+    # --- Process Standard Insight Results ---
+    # Count quarterly reports if SEC data was used in standard insight
+    if USE_SEC and "filings" in insight and insight["filings"]:
         result["quarterly_reports_found"] = sum(
             1 for f in insight.get("filings", [])
             if f.get("form_type") in ["10-Q", "10-K"]
         )
         print(f"Found {result['quarterly_reports_found']} quarterly reports for {ticker}")
     
-    # Get yfinance comparison if available
+    # Get yfinance comparison if available from standard insight
     if USE_YFINANCE and "yfinance_comparison" in insight:
         yf_comparison = insight["yfinance_comparison"]
-        result["yfinance_probabilities"] = yf_comparison["yfinance_probabilities"]
-        result["model_probabilities"] = yf_comparison["model_probabilities"]
-        result["mse"] = calculate_mse(
-            yf_comparison["yfinance_probabilities"],
-            yf_comparison["model_probabilities"]
-        )
-    
+        yf_probs = yf_comparison.get("yfinance_probabilities")
+        model_probs = yf_comparison.get("model_probabilities")
+
+        if yf_probs:
+             result["yfinance_probabilities"] = yf_probs
+             # Calculate standard MSE
+             if model_probs:
+                 result["model_probabilities"] = model_probs
+                 result["mse"] = calculate_mse(yf_probs, model_probs)
+             
+             # Calculate blind MSE if blind probs exist
+             if blind_model_probs:
+                 result["blind_mse"] = calculate_mse(yf_probs, blind_model_probs)
+        else:
+            print(f"Warning: yfinance probabilities missing for {ticker}")
+    elif USE_YFINANCE:
+        print(f"Warning: yfinance_comparison block missing in standard insight for {ticker}")
+
     return result
 
 def save_results(results: List[Dict], filename: str = None):
@@ -105,10 +175,11 @@ def save_results(results: List[Dict], filename: str = None):
     # Convert results to DataFrame
     df = pd.DataFrame(results)
     
-    # Define columns in order of preference
+    # Define columns in order of preference, including new blind columns
     columns = [
         "ticker", "quarterly_reports_found",
-        "mse", "yfinance_probabilities", "model_probabilities"
+        "mse", "yfinance_probabilities", "model_probabilities",
+        "blind_mse", "blind_model_probabilities"
     ]
     
     # Only include columns that exist in the DataFrame
@@ -119,19 +190,28 @@ def save_results(results: List[Dict], filename: str = None):
         
     df = df[available_columns]
     
+    # Convert probability dicts to strings for CSV
+    for col in ["yfinance_probabilities", "model_probabilities", "blind_model_probabilities"]:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, dict) else x)
+            
     # Save to CSV
     df.to_csv(filename, index=False)
     print(f"\nResults saved to {filename}")
     
-    # Print summary statistics
+    # Print summary statistics, including blind MSE
     print("\nSummary Statistics:")
     print(f"Total tickers processed: {len(results)}")
     if "mse" in df.columns:
-        print(f"Average MSE: {df['mse'].mean():.6f}")
+        print(f"Average MSE (Standard): {df['mse'].mean():.6f}")
+    if "blind_mse" in df.columns:
+        print(f"Average MSE (Blind): {df['blind_mse'].mean():.6f}")
     if "quarterly_reports_found" in df.columns:
         print(f"Average quarterly reports found: {df['quarterly_reports_found'].mean():.2f}")
     if "mse" in df.columns:
-        print(f"Success rate: {(df['mse'].notna().sum() / len(df)) * 100:.1f}%")
+        print(f"Success rate (Standard): {(df['mse'].notna().sum() / len(df)) * 100:.1f}%")
+    if "blind_mse" in df.columns:
+        print(f"Success rate (Blind): {(df['blind_mse'].notna().sum() / len(df)) * 100:.1f}%")
 
 def main():
     # Get OpenAI API key
