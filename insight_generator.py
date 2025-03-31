@@ -6,7 +6,8 @@ import openai
 from dotenv import load_dotenv
 import os
 from sec_edgar_fetcher import fetch_filings
-from stock_data_fetcher import StockDataFetcher
+from sec_edgar_fetcher.fetcher import SECFetcher
+from stock_data_fetcher.fetcher import StockDataFetcher
 from cachetools import TTLCache, cached
 
 # Configure logging
@@ -17,20 +18,24 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 class InsightGenerator:
-    def __init__(self):
-        """Initialize the InsightGenerator with OpenAI API key and caches."""
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        if not self.openai_api_key:
-            raise ValueError("OpenAI API key not found in environment variables")
-        
-        openai.api_key = self.openai_api_key
-        
-        # Initialize caches with 1-hour TTL
-        self.insight_cache = TTLCache(maxsize=100, ttl=3600)
+    def __init__(self, openai_api_key: str, use_yfinance: bool = True, use_SEC: bool = True):
+        """Initialize the InsightGenerator with OpenAI API key and data source flags."""
+        self.openai_api_key = openai_api_key
+        self.use_yfinance = use_yfinance
+        self.use_SEC = use_SEC
+        self.sec_fetcher = SECFetcher()
         self.stock_fetcher = StockDataFetcher()
+        openai.api_key = openai_api_key
 
-    def _prepare_financial_data(self, ticker: str, filing_date: str) -> Dict:
-        """Prepare financial data for analysis by combining SEC filings and market data."""
+    def _prepare_financial_data(self, ticker: str, filing_date: str, quarters: int = 8, max_search: int = 100) -> Dict:
+        """Prepare financial data for analysis by combining SEC filings and market data.
+        
+        Args:
+            ticker: The stock ticker symbol
+            filing_date: The filing date to analyze
+            quarters: Number of quarterly/annual reports to find (10-Q + 10-K count)
+            max_search: Maximum number of iterations before terminating early
+        """
         try:
             # Convert filing date to datetime for calculations
             filing_dt = datetime.strptime(filing_date, "%Y-%m-%d")
@@ -41,76 +46,77 @@ class InsightGenerator:
             
             print(f"\nFetching data for {ticker} as of {filing_date}")
             print(f"Date range: {start_date} to {end_date}")
+            print(f"Target quarters: {quarters}")
+            print(f"Max search iterations: {max_search}")
             
-            # Get all filings in a single pass
-            print("\nFetching all SEC filings...")
-            all_filings = fetch_filings(ticker, "ALL", date_range=(start_date, filing_date))
-            
-            if not all_filings:
-                logger.warning(f"No recent filings found for {ticker}")
-                return {}
+            # Initialize data variables
+            all_filings = []
+            price_reaction = None
+            analyst_ratings = None
+            price_data = None
+            technical_indicators = None
 
-            # Group filings by type for logging
-            filings_by_type = {}
-            for filing in all_filings:
-                filing_type = filing.get("form_type", "Unknown")
-                if filing_type not in filings_by_type:
-                    filings_by_type[filing_type] = []
-                filings_by_type[filing_type].append(filing)
+            # Get SEC filings if enabled
+            if self.use_SEC:
+                print("\nFetching all SEC filings...")
+                all_filings = fetch_filings(
+                    ticker, 
+                    "ALL", 
+                    date_range=(start_date, filing_date),
+                    quarters=quarters,
+                    max_search=max_search
+                )
+                
+                if not all_filings:
+                    logger.warning(f"No recent filings found for {ticker}")
+                    return {}
 
-            # Print summary of filings found
-            for filing_type, filings in filings_by_type.items():
-                print(f"\nFound {len(filings)} {filing_type} filings:")
-                for filing in filings:
-                    print(f"- {filing['filing_date']}: {filing.get('financials', {}).get('Revenue', 'N/A')} Revenue")
+                # Group filings by type for logging
+                filings_by_type = {}
+                for filing in all_filings:
+                    filing_type = filing.get("form_type", "Unknown")
+                    if filing_type not in filings_by_type:
+                        filings_by_type[filing_type] = []
+                    filings_by_type[filing_type].append(filing)
 
-            # Get price reaction data
-            print("\nFetching price reaction data...")
-            price_reaction = self.stock_fetcher.get_price_reaction(ticker, filing_date)
-            if price_reaction:
-                print(f"Price change: {price_reaction.get('price_change_percent', 'N/A')}%")
-                print(f"Volume change: {price_reaction.get('volume_change_percent', 'N/A')}%")
-            
-            # Get analyst ratings
-            print("\nFetching analyst ratings...")
-            analyst_ratings = self.stock_fetcher.get_analyst_ratings(ticker)
-            if analyst_ratings:
-                print(f"Mean target: ${analyst_ratings.get('mean_target', 'N/A')}")
-                print(f"Latest rating: {analyst_ratings.get('latest_rating', 'N/A')}")
-                print(f"Buy/Hold/Sell: {analyst_ratings.get('buy_ratings', 0)}/{analyst_ratings.get('hold_ratings', 0)}/{analyst_ratings.get('sell_ratings', 0)}")
-            
-            # Get historical prices for technical analysis
-            print("\nFetching historical price data...")
-            price_data = self.stock_fetcher.get_historical_prices(ticker, start_date, end_date)
-            if price_data:
-                print(f"Found {len(price_data.get('dates', []))} price points")
-            
-            # Calculate technical indicators
-            print("\nCalculating technical indicators...")
-            technical_indicators = self.stock_fetcher.calculate_technical_indicators(price_data)
-            
-            # Get price and volume data at filing date
-            filing_price = price_data.get("close", [])[-1] if price_data.get("close") else None
-            filing_volume = price_data.get("volume", [])[-1] if price_data.get("volume") else None
-            
-            # Get moving averages at filing date
-            sma_20 = technical_indicators.get("sma_20", [])[-1] if technical_indicators.get("sma_20") else None
-            sma_50 = technical_indicators.get("sma_50", [])[-1] if technical_indicators.get("sma_50") else None
-            
-            # Get RSI and MACD at filing date
-            rsi = technical_indicators.get("rsi", [])[-1] if technical_indicators.get("rsi") else None
-            macd = technical_indicators.get("macd", [])[-1] if technical_indicators.get("macd") else None
-            
-            # Get Bollinger Bands at filing date
-            bb = technical_indicators.get("bollinger_bands", {})
-            bb_upper = bb.get("upper", [])[-1] if bb.get("upper") else None
-            bb_lower = bb.get("lower", [])[-1] if bb.get("lower") else None
+                # Print summary of filings found
+                for filing_type, filings in filings_by_type.items():
+                    print(f"\nFound {len(filings)} {filing_type} filings:")
+                    for filing in filings:
+                        print(f"- {filing['filing_date']}: {filing.get('financials', {}).get('Revenue', 'N/A')} Revenue")
 
-            if technical_indicators:
-                print(f"RSI: {rsi:.2f}")
-                print(f"MACD: {macd:.2f}")
-                print(f"SMA 20: ${sma_20:.2f}")
-                print(f"SMA 50: ${sma_50:.2f}")
+            # Get market data if yfinance is enabled
+            if self.use_yfinance:
+                # Get price reaction data
+                print("\nFetching price reaction data...")
+                price_reaction = self.stock_fetcher.get_price_reaction(ticker, filing_date)
+                if price_reaction:
+                    print(f"Price change: {price_reaction.get('price_change_percent', 'N/A')}%")
+                    print(f"Volume change: {price_reaction.get('volume_change_percent', 'N/A')}%")
+                
+                # Get analyst ratings
+                print("\nFetching analyst ratings...")
+                analyst_ratings = self.stock_fetcher.get_analyst_ratings(ticker)
+                if analyst_ratings:
+                    print(f"Mean target: ${analyst_ratings.get('mean_target', 'N/A')}")
+                    print(f"Latest rating: {analyst_ratings.get('latest_rating', 'N/A')}")
+                    print(f"Buy/Hold/Sell: {analyst_ratings.get('buy_ratings', 0)}/{analyst_ratings.get('hold_ratings', 0)}/{analyst_ratings.get('sell_ratings', 0)}")
+                
+                # Get historical prices for technical analysis
+                print("\nFetching historical price data...")
+                price_data = self.stock_fetcher.get_historical_prices(ticker, start_date, end_date)
+                if price_data:
+                    print(f"Found {len(price_data.get('dates', []))} price points")
+                
+                # Calculate technical indicators
+                print("\nCalculating technical indicators...")
+                technical_indicators = self.stock_fetcher.calculate_technical_indicators(price_data)
+                
+                if technical_indicators:
+                    print(f"RSI: {technical_indicators.get('rsi', [])[-1]:.2f}")
+                    print(f"MACD: {technical_indicators.get('macd', [])[-1]:.2f}")
+                    print(f"SMA 20: ${technical_indicators.get('sma_20', [])[-1]:.2f}")
+                    print(f"SMA 50: ${technical_indicators.get('sma_50', [])[-1]:.2f}")
 
             return {
                 "ticker": ticker,
@@ -119,18 +125,7 @@ class InsightGenerator:
                 "recent_filings": all_filings,
                 "price_reaction": price_reaction,
                 "analyst_ratings": analyst_ratings,
-                "technical_indicators": {
-                    "filing_price": filing_price,
-                    "filing_volume": filing_volume,
-                    "sma_20": sma_20,
-                    "sma_50": sma_50,
-                    "rsi": rsi,
-                    "macd": macd,
-                    "bollinger_bands": {
-                        "upper": bb_upper,
-                        "lower": bb_lower
-                    }
-                },
+                "technical_indicators": technical_indicators,
                 "price_data": price_data
             }
         except Exception as e:
@@ -143,51 +138,35 @@ class InsightGenerator:
         filing_date = financial_data["filing_date"]
         analysis_date = financial_data["analysis_date"]
         
-        # Extract key metrics from all filings
-        all_filings = financial_data["recent_filings"]
-        print(f"\nProcessing {len(all_filings)} filings for analysis...")
+        # Initialize prompt sections
+        prompt_sections = []
         
-        # Group filings by type
-        filings_by_type = {}
-        for filing in all_filings:
-            filing_type = filing.get("form_type", "Unknown")
-            if filing_type not in filings_by_type:
-                filings_by_type[filing_type] = []
-            filings_by_type[filing_type].append(filing)
-        
-        # Print filing summary
-        for filing_type, filings in filings_by_type.items():
-            print(f"\n{filing_type} Filings:")
-            for filing in filings:
-                print(f"- {filing['filing_date']}: {filing.get('financials', {}).get('Revenue', 'N/A')} Revenue")
-        
-        # Use the most recent filing for financial metrics
-        latest_filing = all_filings[0] if all_filings else {}
-        financial_metrics = latest_filing.get("financials", {})
-        
-        # Extract management discussion
-        mda_text = financial_metrics.get("Management Discussion & Analysis summary", "")
-        
-        # Format technical indicators
-        tech_indicators = financial_data.get("technical_indicators", {})
-        
-        # Format analyst ratings
-        ratings = financial_data.get("analyst_ratings", {})
-        
-        # Format price reaction
-        price_reaction = financial_data.get("price_reaction", {})
-        
-        prompt = f"""You are a financial analyst assistant. Analyze the following financial data for {ticker} as of {filing_date}:
-
-Financial Metrics:
+        # Add SEC data section if enabled
+        if self.use_SEC:
+            all_filings = financial_data["recent_filings"]
+            if all_filings:
+                # Use the most recent filing for financial metrics
+                latest_filing = all_filings[0]
+                financial_metrics = latest_filing.get("financials", {})
+                mda_text = financial_metrics.get("Management Discussion & Analysis summary", "")
+                
+                prompt_sections.append(f"""Financial Metrics:
 {json.dumps(financial_metrics, indent=2)}
 
 Management Discussion:
 {mda_text}
 
-Market Data as of {filing_date}:
+Recent Filings Summary:
+{chr(10).join(f"- {f['form_type']} ({f['filing_date']}): {f.get('financials', {}).get('Revenue', 'N/A')} Revenue" for f in all_filings[:5])}""")
+        
+        # Add market data section if yfinance is enabled
+        if self.use_yfinance:
+            tech_indicators = financial_data.get("technical_indicators", {})
+            price_reaction = financial_data.get("price_reaction", {})
+            
+            prompt_sections.append(f"""Market Data as of {filing_date}:
 Price: ${tech_indicators.get('filing_price', 'N/A')}
-Volume: {tech_indicators.get('filing_volume', 'N/A'):,}
+Volume: {tech_indicators.get('filing_volume', 'N/A')}
 RSI: {tech_indicators.get('rsi', 'N/A')}
 MACD: {tech_indicators.get('macd', 'N/A')}
 SMA 20: ${tech_indicators.get('sma_20', 'N/A')}
@@ -196,23 +175,16 @@ Bollinger Bands:
   Upper: ${tech_indicators.get('bollinger_bands', {}).get('upper', 'N/A')}
   Lower: ${tech_indicators.get('bollinger_bands', {}).get('lower', 'N/A')}
 
-Analyst Ratings as of {filing_date}:
-Mean Target: ${ratings.get('mean_target', 'N/A')}
-Median Target: ${ratings.get('median_target', 'N/A')}
-Latest Rating: {ratings.get('latest_rating', 'N/A')}
-Latest Target: ${ratings.get('latest_target', 'N/A')}
-Buy Ratings: {ratings.get('buy_ratings', 0)}
-Hold Ratings: {ratings.get('hold_ratings', 0)}
-Sell Ratings: {ratings.get('sell_ratings', 0)}
-
 Price Reaction:
 Pre-Filing Price: ${price_reaction.get('pre_filing_price', 'N/A')}
 Post-Filing Price: ${price_reaction.get('post_filing_price', 'N/A')}
 Price Change: {price_reaction.get('price_change_percent', 'N/A')}%
-Volume Change: {price_reaction.get('volume_change_percent', 'N/A')}%
+Volume Change: {price_reaction.get('volume_change_percent', 'N/A')}%""")
+        
+        # Build the complete prompt
+        prompt = f"""You are a financial analyst assistant. Analyze the following financial data for {ticker} as of {filing_date}:
 
-Recent Filings Summary:
-{chr(10).join(f"- {f['form_type']} ({f['filing_date']}): {f.get('financials', {}).get('Revenue', 'N/A')} Revenue" for f in all_filings[:5])}
+{chr(10).join(prompt_sections)}
 
 Provide:
 1. A concise summary of key performance indicators
@@ -246,63 +218,79 @@ Format your response as JSON with the following structure:
 
         return prompt
 
-    @cached(cache=TTLCache(maxsize=100, ttl=3600))
-    def generate_insights(self, ticker: str, filing_date: str) -> Dict:
-        """Generate investment insights for a given ticker and filing date."""
+    def generate_insight(self, ticker: str, filing_date: str, quarters: int = 8, max_search: int = 100) -> Dict:
+        """Generate investment insight for a given ticker and filing date.
+        
+        Args:
+            ticker: The stock ticker symbol
+            filing_date: The filing date to analyze
+            quarters: Number of quarterly/annual reports to find (10-Q + 10-K count)
+            max_search: Maximum number of iterations before terminating early
+        """
         try:
             # Prepare financial data
-            financial_data = self._prepare_financial_data(ticker, filing_date)
+            financial_data = self._prepare_financial_data(ticker, filing_date, quarters, max_search)
             if not financial_data:
                 return {}
 
-            # Create analysis prompt
+            # Create analysis prompt (now only includes SEC data)
             prompt = self._create_analysis_prompt(financial_data)
-            
-            # Call OpenAI API
+
+            # Get GPT analysis
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a financial analyst assistant. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=1000
+            )
+
+            # Parse the response
             try:
-                response = openai.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "You are a professional financial analyst. Provide detailed, data-driven analysis with clear recommendations."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=1000
-                )
+                analysis = json.loads(response.choices[0].message.content)
                 
-                if not response or not response.choices:
-                    logger.error("Empty response from OpenAI API")
-                    return {}
-
-                # Parse the response
-                content = response.choices[0].message.content.strip()
-                try:
-                    insights = json.loads(content)
-                    return {
-                        "ticker": ticker,
-                        "filing_date": filing_date,
-                        "generated_at": datetime.now().isoformat(),
-                        "insights": insights
-                    }
-                except json.JSONDecodeError as e:
-                    logger.error(f"Error parsing OpenAI response: {e}")
-                    return {}
-
-            except openai.BadRequestError as e:
-                logger.error(f"OpenAI API error: {e}")
-                return {}
-            except openai.AuthenticationError as e:
-                logger.error(f"OpenAI API authentication error: {e}")
-                return {}
-            except openai.RateLimitError as e:
-                logger.error(f"OpenAI API rate limit error: {e}")
-                return {}
-            except openai.APIError as e:
-                logger.error(f"OpenAI API error: {e}")
+                # If yfinance is enabled, validate against analyst ratings
+                if self.use_yfinance and financial_data.get("analyst_ratings"):
+                    yf_ratings = financial_data["analyst_ratings"]
+                    raw_recommendations = yf_ratings.get("raw_recommendations", {})
+                    total_ratings = sum(raw_recommendations.values())
+                    
+                    if total_ratings > 0:
+                        # Calculate probabilities for all 5 ratings
+                        yf_probs = {
+                            "strongBuy": raw_recommendations.get("strongBuy", 0) / total_ratings,
+                            "buy": raw_recommendations.get("buy", 0) / total_ratings,
+                            "hold": raw_recommendations.get("hold", 0) / total_ratings,
+                            "sell": raw_recommendations.get("sell", 0) / total_ratings,
+                            "strongSell": raw_recommendations.get("strongSell", 0) / total_ratings
+                        }
+                        
+                        # Map model probabilities to the 5 ratings
+                        model_probs = {
+                            "strongBuy": analysis["recommendation"]["buy_probability"] * 0.3,  # 30% of buy probability
+                            "buy": analysis["recommendation"]["buy_probability"] * 0.7,      # 70% of buy probability
+                            "hold": analysis["recommendation"]["hold_probability"],
+                            "sell": analysis["recommendation"]["sell_probability"] * 0.7,    # 70% of sell probability
+                            "strongSell": analysis["recommendation"]["sell_probability"] * 0.3  # 30% of sell probability
+                        }
+                        
+                        # Add yfinance comparison to the analysis
+                        analysis["yfinance_comparison"] = {
+                            "yfinance_probabilities": yf_probs,
+                            "model_probabilities": model_probs,
+                            "difference": {
+                                k: model_probs[k] - yf_probs[k] for k in yf_probs.keys()
+                            }
+                        }
+                
+                return analysis
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing GPT response: {str(e)}")
                 return {}
 
         except Exception as e:
-            logger.error(f"Error generating insights: {str(e)}")
+            logger.error(f"Error generating insight: {str(e)}")
             return {}
 
     def get_latest_insights(self, ticker: str) -> Dict:
@@ -315,7 +303,7 @@ Format your response as JSON with the following structure:
                 return {}
 
             latest_filing_date = recent_filings[0]["filing_date"]
-            return self.generate_insights(ticker, latest_filing_date)
+            return self.generate_insight(ticker, latest_filing_date)
 
         except Exception as e:
             logger.error(f"Error getting latest insights: {str(e)}")

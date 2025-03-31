@@ -73,30 +73,45 @@ class StockDataFetcher:
                     "hold_ratings": 0,
                     "sell_ratings": 0,
                     "latest_rating": None,
-                    "latest_target": None
+                    "latest_target": None,
+                    "raw_recommendations": {
+                        "strongBuy": 0,
+                        "buy": 0,
+                        "hold": 0,
+                        "sell": 0,
+                        "strongSell": 0
+                    }
                 }
 
-            # Initialize rating counts
-            rating_counts = {
-                "Buy": 0,
-                "Hold": 0,
-                "Sell": 0
-            }
-
             # Get analyst recommendations
-            recommendations = t.recommendations
+            recommendations = t.get_recommendations()
             latest_rating = None
             latest_target = None
 
             if recommendations is not None and not recommendations.empty:
-                # Handle different possible column names for ratings
-                rating_columns = ["To Grade", "Grade", "Action"]
-                rating_column = next((col for col in rating_columns if col in recommendations.columns), None)
+                # Calculate rating counts from the recommendations DataFrame
+                # Weight strongBuy and strongSell more heavily
+                rating_counts = {
+                    "Buy": int(recommendations["buy"].sum() + recommendations["strongBuy"].sum() * 1.5),
+                    "Hold": int(recommendations["hold"].sum()),
+                    "Sell": int(recommendations["sell"].sum() + recommendations["strongSell"].sum() * 1.5)
+                }
                 
-                if rating_column:
-                    rating_counts = recommendations[rating_column].value_counts().to_dict()
-                    latest_rating = recommendations.iloc[0][rating_column]
-                    latest_target = recommendations.iloc[0].get("Price Target", None)
+                # Get the latest rating with strong recommendations weighted more heavily
+                latest_row = recommendations.iloc[0]
+                buy_score = latest_row["buy"] + latest_row["strongBuy"] * 1.5
+                hold_score = latest_row["hold"]
+                sell_score = latest_row["sell"] + latest_row["strongSell"] * 1.5
+                
+                if buy_score > hold_score and buy_score > sell_score:
+                    latest_rating = "Strong Buy" if latest_row["strongBuy"] > latest_row["buy"] else "Buy"
+                elif hold_score > buy_score and hold_score > sell_score:
+                    latest_rating = "Hold"
+                elif sell_score > buy_score and sell_score > hold_score:
+                    latest_rating = "Strong Sell" if latest_row["strongSell"] > latest_row["sell"] else "Sell"
+                
+                # Get the latest target from info
+                latest_target = recommendations.iloc[0].get("priceTarget", None)
 
             # Get price targets and other info
             info = t.info
@@ -124,7 +139,14 @@ class StockDataFetcher:
                 "hold_ratings": int(rating_counts.get("Hold", 0)),
                 "sell_ratings": int(rating_counts.get("Sell", 0)),
                 "latest_rating": latest_rating,
-                "latest_target": float(latest_target) if latest_target is not None else None
+                "latest_target": float(latest_target) if latest_target is not None else None,
+                "raw_recommendations": {
+                    "strongBuy": int(recommendations["strongBuy"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                    "buy": int(recommendations["buy"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                    "hold": int(recommendations["hold"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                    "sell": int(recommendations["sell"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                    "strongSell": int(recommendations["strongSell"].sum()) if recommendations is not None and not recommendations.empty else 0
+                }
             }
         except Exception as e:
             logger.error(f"Error fetching analyst ratings for {ticker}: {str(e)}")
@@ -136,7 +158,14 @@ class StockDataFetcher:
                 "hold_ratings": 0,
                 "sell_ratings": 0,
                 "latest_rating": None,
-                "latest_target": None
+                "latest_target": None,
+                "raw_recommendations": {
+                    "strongBuy": 0,
+                    "buy": 0,
+                    "hold": 0,
+                    "sell": 0,
+                    "strongSell": 0
+                }
             }
 
     def get_price_reaction(self, ticker: str, filing_date: str, days_before: int = 5, days_after: int = 5) -> Dict:
