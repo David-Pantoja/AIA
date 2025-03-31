@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from .utils import rate_limited, retry_on_http_error
 from dotenv import load_dotenv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import concurrent.futures
 import time
 from ratelimit import limits, sleep_and_retry
@@ -33,7 +33,7 @@ class SECFetcher:
         self.max_retries = 3
         self.retry_delay = 5  # 5 seconds between retries
 
-    def _make_request(self, url: str, timeout: int = 10) -> Optional[requests.Response]:
+    def _make_request(self, url: str, timeout: int = 30) -> Optional[requests.Response]:
         """Make a rate-limited request with retry logic."""
         for attempt in range(self.max_retries):
             try:
@@ -42,28 +42,51 @@ class SECFetcher:
                 # Add a small delay between requests
                 time.sleep(self.request_delay)
                 
+                # Increase timeout for larger documents
+                if 'Archives/edgar/data' in url and not url.endswith('.json'):
+                    timeout = 60  # 60 seconds for document fetches
+                
                 response = requests.get(url, headers=self.headers, timeout=timeout)
                 
                 # Handle rate limit errors
                 if response.status_code == 429:  # Too Many Requests
-                    logger.warning(f"Rate limit hit on attempt {attempt + 1}/{self.max_retries}, waiting {self.retry_delay} seconds...")
-                    time.sleep(self.retry_delay)
+                    wait_time = self.retry_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Rate limit hit on attempt {attempt + 1}/{self.max_retries}, waiting {wait_time} seconds...")
+                    time.sleep(wait_time)
                     continue
                 
                 # Handle other error status codes
                 if response.status_code >= 400:
                     logger.warning(f"HTTP {response.status_code} error on attempt {attempt + 1}/{self.max_retries}")
                     if attempt < self.max_retries - 1:
-                        time.sleep(self.retry_delay)
+                        wait_time = self.retry_delay * (2 ** attempt)
+                        time.sleep(wait_time)
                         continue
                     return None
                 
                 return response
                 
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Request error on attempt {attempt + 1}/{self.max_retries}: {e}")
+            except requests.exceptions.Timeout:
+                wait_time = self.retry_delay * (2 ** attempt)
+                logger.warning(f"Timeout on attempt {attempt + 1}/{self.max_retries}, waiting {wait_time} seconds...")
                 if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay)
+                    time.sleep(wait_time)
+                    continue
+                return None
+                
+            except requests.exceptions.ConnectionError as e:
+                wait_time = self.retry_delay * (2 ** attempt)
+                logger.warning(f"Connection error on attempt {attempt + 1}/{self.max_retries}: {e}, waiting {wait_time} seconds...")
+                if attempt < self.max_retries - 1:
+                    time.sleep(wait_time)
+                    continue
+                return None
+                
+            except requests.exceptions.RequestException as e:
+                wait_time = self.retry_delay * (2 ** attempt)
+                logger.warning(f"Request error on attempt {attempt + 1}/{self.max_retries}: {e}, waiting {wait_time} seconds...")
+                if attempt < self.max_retries - 1:
+                    time.sleep(wait_time)
                     continue
                 return None
         
@@ -134,11 +157,11 @@ class SECFetcher:
             # Skip future dates and invalid dates
             filing_date = datetime(year, month, day)
             
-            # For 2025 filings, only skip if the date is in the future
-            if year == 2025 and filing_date > current_date:
+            # Skip dates before 2023
+            if year < 2023:
                 return None
-            # For other years, skip if before 2023
-            elif year < 2023:
+            # Skip dates more than 30 days in the future
+            elif filing_date > (current_date + timedelta(days=30)):
                 return None
 
             # Get the form type from the filing metadata
@@ -317,7 +340,27 @@ class SECFetcher:
         submissions = self.get_submissions(cik, quarters=quarters, max_search=max_search)
         logger.info(f"\nFound {len(submissions)} total submissions")
         
-        # Process all submissions in parallel with fewer workers
+        # Filter submissions by type and limit to quarters if specified
+        filtered_submissions = []
+        quarterly_count = 0
+        
+        for s in submissions:
+            # Always include 8-Ks if they match the filing type
+            if s["form_type"] == "8-K" and (filing_type == "ALL" or filing_type == "8-K"):
+                filtered_submissions.append(s)
+                continue
+                
+            # For 10-K/10-Q, check if we've reached the quarters target
+            if s["form_type"] in ["10-Q", "10-K"]:
+                if filing_type == "ALL" or filing_type in ["10-Q", "10-K"]:
+                    quarterly_count += 1
+                    filtered_submissions.append(s)
+                    if quarters and quarterly_count >= quarters:
+                        break
+        
+        logger.info(f"Processing {len(filtered_submissions)} {filing_type if filing_type != 'ALL' else 'total'} filings")
+        
+        # Process submissions in parallel with more workers
         filings = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             # Create futures for each submission
@@ -328,17 +371,22 @@ class SECFetcher:
                         "filing_date": s["filing_date"],
                         "form_type": s["form_type"],
                         "document": self.get_filing_document(cik, s["accession_number"])
-                    } if (filing_type == "ALL" or s["form_type"] == filing_type) else None,
+                    },
                     submission
                 ): submission 
-                for submission in submissions
+                for submission in filtered_submissions
             }
             
-            # Process completed futures
+            # Process completed futures with progress tracking
+            completed = 0
+            total = len(future_to_submission)
             for future in concurrent.futures.as_completed(future_to_submission):
                 result = future.result()
+                completed += 1
+                if completed % 1 == 0:  # Log progress for every filing
+                    logger.info(f"✓ Processed {completed}/{total} filings ({(completed/total)*100:.1f}%)")
                 if result:
                     filings.append(result)
         
-        logger.info(f"\nProcessed {len(filings)} {filing_type if filing_type != 'ALL' else 'total'} filings")
+        logger.info(f"\n✓ Completed processing {len(filings)} {filing_type if filing_type != 'ALL' else 'total'} filings")
         return filings 

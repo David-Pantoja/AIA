@@ -27,25 +27,16 @@ class InsightGenerator:
         self.stock_fetcher = StockDataFetcher()
         openai.api_key = openai_api_key
 
-    def _prepare_financial_data(self, ticker: str, filing_date: str, quarters: int = 8, max_search: int = 100) -> Dict:
+    def _prepare_financial_data(self, ticker: str, quarters: int = 8, max_search: int = 100) -> Dict:
         """Prepare financial data for analysis by combining SEC filings and market data.
         
         Args:
             ticker: The stock ticker symbol
-            filing_date: The filing date to analyze
             quarters: Number of quarterly/annual reports to find (10-Q + 10-K count)
             max_search: Maximum number of iterations before terminating early
         """
         try:
-            # Convert filing date to datetime for calculations
-            filing_dt = datetime.strptime(filing_date, "%Y-%m-%d")
-            
-            # Calculate date ranges for historical data
-            start_date = (filing_dt - timedelta(days=365)).strftime("%Y-%m-%d")
-            end_date = (filing_dt + timedelta(days=30)).strftime("%Y-%m-%d")
-            
-            print(f"\nFetching data for {ticker} as of {filing_date}")
-            print(f"Date range: {start_date} to {end_date}")
+            print(f"\nFetching data for {ticker}")
             print(f"Target quarters: {quarters}")
             print(f"Max search iterations: {max_search}")
             
@@ -61,8 +52,7 @@ class InsightGenerator:
                 print("\nFetching all SEC filings...")
                 all_filings = fetch_filings(
                     ticker, 
-                    "ALL", 
-                    date_range=(start_date, filing_date),
+                    "ALL",
                     quarters=quarters,
                     max_search=max_search
                 )
@@ -85,65 +75,48 @@ class InsightGenerator:
                     for filing in filings:
                         print(f"- {filing['filing_date']}: {filing.get('financials', {}).get('Revenue', 'N/A')} Revenue")
 
-            # Get market data if yfinance is enabled
+            # Get market data if enabled
             if self.use_yfinance:
-                # Get price reaction data
-                print("\nFetching price reaction data...")
-                price_reaction = self.stock_fetcher.get_price_reaction(ticker, filing_date)
-                if price_reaction:
-                    print(f"Price change: {price_reaction.get('price_change_percent', 'N/A')}%")
-                    print(f"Volume change: {price_reaction.get('volume_change_percent', 'N/A')}%")
+                print("\nFetching market data...")
+                fetcher = StockDataFetcher()
                 
                 # Get analyst ratings
-                print("\nFetching analyst ratings...")
-                analyst_ratings = self.stock_fetcher.get_analyst_ratings(ticker)
+                analyst_ratings = fetcher.get_analyst_ratings(ticker)
                 if analyst_ratings:
-                    print(f"Mean target: ${analyst_ratings.get('mean_target', 'N/A')}")
                     print(f"Latest rating: {analyst_ratings.get('latest_rating', 'N/A')}")
-                    print(f"Buy/Hold/Sell: {analyst_ratings.get('buy_ratings', 0)}/{analyst_ratings.get('hold_ratings', 0)}/{analyst_ratings.get('sell_ratings', 0)}")
+                    print(f"Price target: {analyst_ratings.get('latest_target', 'N/A')}")
                 
-                # Get historical prices for technical analysis
-                print("\nFetching historical price data...")
-                price_data = self.stock_fetcher.get_historical_prices(ticker, start_date, end_date)
+                # Get historical prices for technical indicators
+                price_data = fetcher.get_historical_prices(
+                    ticker,
+                    start_date=(datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d"),
+                    end_date=datetime.now().strftime("%Y-%m-%d")
+                )
+                
                 if price_data:
-                    print(f"Found {len(price_data.get('dates', []))} price points")
-                
-                # Calculate technical indicators
-                print("\nCalculating technical indicators...")
-                technical_indicators = self.stock_fetcher.calculate_technical_indicators(price_data)
-                
-                if technical_indicators:
-                    print(f"RSI: {technical_indicators.get('rsi', [])[-1]:.2f}")
-                    print(f"MACD: {technical_indicators.get('macd', [])[-1]:.2f}")
-                    print(f"SMA 20: ${technical_indicators.get('sma_20', [])[-1]:.2f}")
-                    print(f"SMA 50: ${technical_indicators.get('sma_50', [])[-1]:.2f}")
+                    technical_indicators = fetcher.calculate_technical_indicators(price_data)
+                    print("Calculated technical indicators")
 
             return {
-                "ticker": ticker,
-                "filing_date": filing_date,
-                "analysis_date": filing_date,
-                "recent_filings": all_filings,
+                "filings": all_filings,
                 "price_reaction": price_reaction,
                 "analyst_ratings": analyst_ratings,
-                "technical_indicators": technical_indicators,
-                "price_data": price_data
+                "price_data": price_data,
+                "technical_indicators": technical_indicators
             }
+            
         except Exception as e:
             logger.error(f"Error preparing financial data: {str(e)}")
             return {}
 
-    def _create_analysis_prompt(self, financial_data: Dict) -> str:
+    def _create_analysis_prompt(self, financial_data: Dict, ticker: str) -> str:
         """Create a structured prompt for the GPT model."""
-        ticker = financial_data["ticker"]
-        filing_date = financial_data["filing_date"]
-        analysis_date = financial_data["analysis_date"]
-        
         # Initialize prompt sections
         prompt_sections = []
         
         # Add SEC data section if enabled
-        if self.use_SEC:
-            all_filings = financial_data["recent_filings"]
+        if self.use_SEC and "filings" in financial_data:
+            all_filings = financial_data["filings"]
             if all_filings:
                 # Use the most recent filing for financial metrics
                 latest_filing = all_filings[0]
@@ -162,27 +135,28 @@ Recent Filings Summary:
         # Add market data section if yfinance is enabled
         if self.use_yfinance:
             tech_indicators = financial_data.get("technical_indicators", {})
-            price_reaction = financial_data.get("price_reaction", {})
+            price_data = financial_data.get("price_data", {})
             
-            prompt_sections.append(f"""Market Data as of {filing_date}:
-Price: ${tech_indicators.get('filing_price', 'N/A')}
-Volume: {tech_indicators.get('filing_volume', 'N/A')}
+            if price_data and "close" in price_data:
+                latest_price = price_data["close"][-1] if price_data["close"] else "N/A"
+                latest_volume = price_data["volume"][-1] if price_data["volume"] else "N/A"
+            else:
+                latest_price = "N/A"
+                latest_volume = "N/A"
+            
+            prompt_sections.append(f"""Market Data:
+Price: ${latest_price}
+Volume: {latest_volume}
 RSI: {tech_indicators.get('rsi', 'N/A')}
 MACD: {tech_indicators.get('macd', 'N/A')}
 SMA 20: ${tech_indicators.get('sma_20', 'N/A')}
 SMA 50: ${tech_indicators.get('sma_50', 'N/A')}
 Bollinger Bands:
   Upper: ${tech_indicators.get('bollinger_bands', {}).get('upper', 'N/A')}
-  Lower: ${tech_indicators.get('bollinger_bands', {}).get('lower', 'N/A')}
-
-Price Reaction:
-Pre-Filing Price: ${price_reaction.get('pre_filing_price', 'N/A')}
-Post-Filing Price: ${price_reaction.get('post_filing_price', 'N/A')}
-Price Change: {price_reaction.get('price_change_percent', 'N/A')}%
-Volume Change: {price_reaction.get('volume_change_percent', 'N/A')}%""")
+  Lower: ${tech_indicators.get('bollinger_bands', {}).get('lower', 'N/A')}""")
         
         # Build the complete prompt
-        prompt = f"""You are a financial analyst assistant. Analyze the following financial data for {ticker} as of {filing_date}:
+        prompt = f"""You are a financial analyst assistant. Analyze the following financial data for {ticker}:
 
 {chr(10).join(prompt_sections)}
 
@@ -218,23 +192,22 @@ Format your response as JSON with the following structure:
 
         return prompt
 
-    def generate_insight(self, ticker: str, filing_date: str, quarters: int = 8, max_search: int = 100) -> Dict:
-        """Generate investment insight for a given ticker and filing date.
+    def generate_insight(self, ticker: str, quarters: int = 8, max_search: int = 100) -> Dict:
+        """Generate investment insight for a given ticker.
         
         Args:
             ticker: The stock ticker symbol
-            filing_date: The filing date to analyze
             quarters: Number of quarterly/annual reports to find (10-Q + 10-K count)
             max_search: Maximum number of iterations before terminating early
         """
         try:
             # Prepare financial data
-            financial_data = self._prepare_financial_data(ticker, filing_date, quarters, max_search)
+            financial_data = self._prepare_financial_data(ticker, quarters, max_search)
             if not financial_data:
                 return {}
 
-            # Create analysis prompt (now only includes SEC data)
-            prompt = self._create_analysis_prompt(financial_data)
+            # Create analysis prompt
+            prompt = self._create_analysis_prompt(financial_data, ticker)
 
             # Get GPT analysis
             response = openai.chat.completions.create(
@@ -248,7 +221,26 @@ Format your response as JSON with the following structure:
 
             # Parse the response
             try:
-                analysis = json.loads(response.choices[0].message.content)
+                content = response.choices[0].message.content.strip()
+                logger.info(f"Raw GPT response: {content[:200]}...")  # Log first 200 chars
+                
+                # Try to parse the response as JSON
+                analysis = json.loads(content)
+                
+                # Validate required fields
+                required_fields = ["summary", "financial_health", "recommendation", "risk_factors", "technical_analysis", "market_sentiment"]
+                missing_fields = [field for field in required_fields if field not in analysis]
+                if missing_fields:
+                    logger.error(f"Missing required fields in GPT response: {missing_fields}")
+                    return {}
+                
+                # Validate recommendation structure
+                recommendation = analysis.get("recommendation", {})
+                required_rec_fields = ["action", "buy_probability", "hold_probability", "sell_probability", "confidence_level"]
+                missing_rec_fields = [field for field in required_rec_fields if field not in recommendation]
+                if missing_rec_fields:
+                    logger.error(f"Missing required fields in recommendation: {missing_rec_fields}")
+                    return {}
                 
                 # If yfinance is enabled, validate against analyst ratings
                 if self.use_yfinance and financial_data.get("analyst_ratings"):
@@ -287,6 +279,10 @@ Format your response as JSON with the following structure:
                 return analysis
             except json.JSONDecodeError as e:
                 logger.error(f"Error parsing GPT response: {str(e)}")
+                logger.error(f"Raw response content: {content}")
+                return {}
+            except Exception as e:
+                logger.error(f"Unexpected error processing GPT response: {str(e)}")
                 return {}
 
         except Exception as e:
@@ -294,17 +290,18 @@ Format your response as JSON with the following structure:
             return {}
 
     def get_latest_insights(self, ticker: str) -> Dict:
-        """Get the latest insights for a given ticker."""
+        """Get the latest insights for a given ticker.
+        
+        Args:
+            ticker: The stock ticker symbol
+            
+        Returns:
+            Dict containing the analysis results
+        """
         try:
-            # Get the most recent filing date
-            recent_filings = fetch_filings(ticker, "10-Q")
-            if not recent_filings:
-                logger.warning(f"No recent filings found for {ticker}")
-                return {}
-
-            latest_filing_date = recent_filings[0]["filing_date"]
-            return self.generate_insight(ticker, latest_filing_date)
-
+            # Generate insights with default parameters
+            return self.generate_insight(ticker)
+            
         except Exception as e:
             logger.error(f"Error getting latest insights: {str(e)}")
             return {} 

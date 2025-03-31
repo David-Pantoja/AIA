@@ -6,6 +6,8 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from cachetools import TTLCache, cached
 import logging
+import requests
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -62,111 +64,141 @@ class StockDataFetcher:
     @cached(cache=TTLCache(maxsize=100, ttl=3600))
     def get_analyst_ratings(self, ticker: str) -> Dict:
         """Fetch analyst ratings and price targets for a given ticker."""
-        try:
-            t = self._get_ticker(ticker)
-            if not t:
+        max_retries = 3
+        retry_delay = 5  # Base delay in seconds
+        
+        for attempt in range(max_retries):
+            try:
+                t = self._get_ticker(ticker)
+                if not t:
+                    return {
+                        "ticker": ticker,
+                        "mean_target": None,
+                        "median_target": None,
+                        "buy_ratings": 0,
+                        "hold_ratings": 0,
+                        "sell_ratings": 0,
+                        "latest_rating": None,
+                        "latest_target": None,
+                        "raw_recommendations": {
+                            "strongBuy": 0,
+                            "buy": 0,
+                            "hold": 0,
+                            "sell": 0,
+                            "strongSell": 0
+                        }
+                    }
+
+                # Get analyst recommendations
+                recommendations = t.get_recommendations()
+                latest_rating = None
+                latest_target = None
+
+                if recommendations is not None and not recommendations.empty:
+                    # Calculate rating counts from the recommendations DataFrame
+                    # Weight strongBuy and strongSell more heavily
+                    rating_counts = {
+                        "Buy": int(recommendations["buy"].sum() + recommendations["strongBuy"].sum() * 1.5),
+                        "Hold": int(recommendations["hold"].sum()),
+                        "Sell": int(recommendations["sell"].sum() + recommendations["strongSell"].sum() * 1.5)
+                    }
+                    
+                    # Get the latest rating with strong recommendations weighted more heavily
+                    latest_row = recommendations.iloc[0]
+                    buy_score = latest_row["buy"] + latest_row["strongBuy"] * 1.5
+                    hold_score = latest_row["hold"]
+                    sell_score = latest_row["sell"] + latest_row["strongSell"] * 1.5
+                    
+                    if buy_score > hold_score and buy_score > sell_score:
+                        latest_rating = "Strong Buy" if latest_row["strongBuy"] > latest_row["buy"] else "Buy"
+                    elif hold_score > buy_score and hold_score > sell_score:
+                        latest_rating = "Hold"
+                    elif sell_score > buy_score and sell_score > hold_score:
+                        latest_rating = "Strong Sell" if latest_row["strongSell"] > latest_row["sell"] else "Sell"
+                    
+                    # Get the latest target from info
+                    latest_target = recommendations.iloc[0].get("priceTarget", None)
+
+                # Get price targets and other info
+                info = t.info
+                mean_target = None
+                median_target = None
+
+                if info:
+                    mean_target = info.get("targetMeanPrice")
+                    median_target = info.get("targetMedianPrice")
+
+                # If no price targets in info, try to calculate from recommendations
+                if (mean_target is None or median_target is None) and recommendations is not None and not recommendations.empty:
+                    price_targets = recommendations["Price Target"].dropna()
+                    if not price_targets.empty:
+                        if mean_target is None:
+                            mean_target = price_targets.mean()
+                        if median_target is None:
+                            median_target = price_targets.median()
+
                 return {
                     "ticker": ticker,
-                    "mean_target": None,
-                    "median_target": None,
-                    "buy_ratings": 0,
-                    "hold_ratings": 0,
-                    "sell_ratings": 0,
-                    "latest_rating": None,
-                    "latest_target": None,
+                    "mean_target": float(mean_target) if mean_target is not None else None,
+                    "median_target": float(median_target) if median_target is not None else None,
+                    "buy_ratings": int(rating_counts.get("Buy", 0)),
+                    "hold_ratings": int(rating_counts.get("Hold", 0)),
+                    "sell_ratings": int(rating_counts.get("Sell", 0)),
+                    "latest_rating": latest_rating,
+                    "latest_target": float(latest_target) if latest_target is not None else None,
                     "raw_recommendations": {
-                        "strongBuy": 0,
-                        "buy": 0,
-                        "hold": 0,
-                        "sell": 0,
-                        "strongSell": 0
+                        "strongBuy": int(recommendations["strongBuy"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                        "buy": int(recommendations["buy"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                        "hold": int(recommendations["hold"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                        "sell": int(recommendations["sell"].sum()) if recommendations is not None and not recommendations.empty else 0,
+                        "strongSell": int(recommendations["strongSell"].sum()) if recommendations is not None and not recommendations.empty else 0
                     }
                 }
-
-            # Get analyst recommendations
-            recommendations = t.get_recommendations()
-            latest_rating = None
-            latest_target = None
-
-            if recommendations is not None and not recommendations.empty:
-                # Calculate rating counts from the recommendations DataFrame
-                # Weight strongBuy and strongSell more heavily
-                rating_counts = {
-                    "Buy": int(recommendations["buy"].sum() + recommendations["strongBuy"].sum() * 1.5),
-                    "Hold": int(recommendations["hold"].sum()),
-                    "Sell": int(recommendations["sell"].sum() + recommendations["strongSell"].sum() * 1.5)
-                }
                 
-                # Get the latest rating with strong recommendations weighted more heavily
-                latest_row = recommendations.iloc[0]
-                buy_score = latest_row["buy"] + latest_row["strongBuy"] * 1.5
-                hold_score = latest_row["hold"]
-                sell_score = latest_row["sell"] + latest_row["strongSell"] * 1.5
-                
-                if buy_score > hold_score and buy_score > sell_score:
-                    latest_rating = "Strong Buy" if latest_row["strongBuy"] > latest_row["buy"] else "Buy"
-                elif hold_score > buy_score and hold_score > sell_score:
-                    latest_rating = "Hold"
-                elif sell_score > buy_score and sell_score > hold_score:
-                    latest_rating = "Strong Sell" if latest_row["strongSell"] > latest_row["sell"] else "Sell"
-                
-                # Get the latest target from info
-                latest_target = recommendations.iloc[0].get("priceTarget", None)
-
-            # Get price targets and other info
-            info = t.info
-            mean_target = None
-            median_target = None
-
-            if info:
-                mean_target = info.get("targetMeanPrice")
-                median_target = info.get("targetMedianPrice")
-
-            # If no price targets in info, try to calculate from recommendations
-            if (mean_target is None or median_target is None) and recommendations is not None and not recommendations.empty:
-                price_targets = recommendations["Price Target"].dropna()
-                if not price_targets.empty:
-                    if mean_target is None:
-                        mean_target = price_targets.mean()
-                    if median_target is None:
-                        median_target = price_targets.median()
-
-            return {
-                "ticker": ticker,
-                "mean_target": float(mean_target) if mean_target is not None else None,
-                "median_target": float(median_target) if median_target is not None else None,
-                "buy_ratings": int(rating_counts.get("Buy", 0)),
-                "hold_ratings": int(rating_counts.get("Hold", 0)),
-                "sell_ratings": int(rating_counts.get("Sell", 0)),
-                "latest_rating": latest_rating,
-                "latest_target": float(latest_target) if latest_target is not None else None,
-                "raw_recommendations": {
-                    "strongBuy": int(recommendations["strongBuy"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                    "buy": int(recommendations["buy"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                    "hold": int(recommendations["hold"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                    "sell": int(recommendations["sell"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                    "strongSell": int(recommendations["strongSell"].sum()) if recommendations is not None and not recommendations.empty else 0
-                }
+            except requests.exceptions.Timeout:
+                wait_time = retry_delay * (2 ** attempt)
+                logger.warning(f"Timeout fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}, waiting {wait_time} seconds...")
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+                    continue
+                    
+            except requests.exceptions.ConnectionError as e:
+                wait_time = retry_delay * (2 ** attempt)
+                logger.warning(f"Connection error fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}: {e}, waiting {wait_time} seconds...")
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+                    continue
+                    
+            except TypeError as e:
+                # Handle yfinance API errors (like invalid parameters)
+                logger.warning(f"yfinance API error for {ticker}: {e}")
+                break  # Don't retry for API errors
+                    
+            except Exception as e:
+                wait_time = retry_delay * (2 ** attempt)
+                logger.warning(f"Error fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}: {e}, waiting {wait_time} seconds...")
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+                    continue
+        
+        # Return default values if all retries failed
+        return {
+            "ticker": ticker,
+            "mean_target": None,
+            "median_target": None,
+            "buy_ratings": 0,
+            "hold_ratings": 0,
+            "sell_ratings": 0,
+            "latest_rating": None,
+            "latest_target": None,
+            "raw_recommendations": {
+                "strongBuy": 0,
+                "buy": 0,
+                "hold": 0,
+                "sell": 0,
+                "strongSell": 0
             }
-        except Exception as e:
-            logger.error(f"Error fetching analyst ratings for {ticker}: {str(e)}")
-            return {
-                "ticker": ticker,
-                "mean_target": None,
-                "median_target": None,
-                "buy_ratings": 0,
-                "hold_ratings": 0,
-                "sell_ratings": 0,
-                "latest_rating": None,
-                "latest_target": None,
-                "raw_recommendations": {
-                    "strongBuy": 0,
-                    "buy": 0,
-                    "hold": 0,
-                    "sell": 0,
-                    "strongSell": 0
-                }
-            }
+        }
 
     def get_price_reaction(self, ticker: str, filing_date: str, days_before: int = 5, days_after: int = 5) -> Dict:
         """Analyze price reaction around a filing date."""

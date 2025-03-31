@@ -98,7 +98,16 @@ def main():
         )
 
         print(f"\nGenerating insights for {ticker} as of {filing_date}...")
-        insight = generator.generate_insight(ticker, filing_date)
+        print("Termination conditions:")
+        print("- Find 4 quarterly/annual reports (10-Q + 10-K)")
+        print("- Stop after 200 search iterations")
+        
+        insight = generator.generate_insight(
+            ticker, 
+            filing_date,
+            quarters=4,  # Find 4 quarterly/annual reports
+            max_search=200  # Stop after 200 iterations
+        )
 
         if not insight:
             print("Failed to generate insights")
