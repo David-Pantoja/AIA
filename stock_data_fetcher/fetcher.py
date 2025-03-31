@@ -1,7 +1,13 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import talib
+# Import talib conditionally so we don't fail if it's not available
+try:
+    import talib
+    TALIB_AVAILABLE = True
+except ImportError:
+    TALIB_AVAILABLE = False
+    print("TA-Lib not available. Using pandas for technical indicators.")
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from cachetools import TTLCache, cached
@@ -36,12 +42,18 @@ class StockDataFetcher:
             if not t:
                 return {}
 
-            # Convert dates to datetime objects
-            start = datetime.strptime(start_date, "%Y-%m-%d")
-            end = datetime.strptime(end_date, "%Y-%m-%d")
-
-            # Fetch historical data
-            hist = t.history(start=start, end=end)
+            # Fetch historical data directly using string dates (like in tmp.py)
+            hist = t.history(
+                start=start_date,
+                end=end_date,
+                interval="1d",        # Daily data
+                auto_adjust=True,     # Auto-adjust OHLC
+                actions=True,         # Include dividends and splits
+                back_adjust=True,     # Back-adjust data to mimic true historical prices
+                repair=True,          # Detect and repair currency unit mixups
+                rounding=False,       # Keep precision as suggested by Yahoo
+                timeout=20            # Longer timeout for reliability
+            )
             
             if hist.empty:
                 logger.warning(f"No historical data found for {ticker}")
@@ -62,7 +74,7 @@ class StockDataFetcher:
             return {}
 
     @cached(cache=TTLCache(maxsize=100, ttl=3600))
-    def get_analyst_ratings(self, ticker: str) -> Dict:
+    def get_analyst_ratings(self, ticker: str, cutoff_date: Optional[datetime] = None) -> Dict:
         """Fetch analyst ratings and price targets for a given ticker."""
         max_retries = 3
         retry_delay = 5  # Base delay in seconds
@@ -95,6 +107,50 @@ class StockDataFetcher:
                 latest_target = None
 
                 if recommendations is not None and not recommendations.empty:
+                    # Filter recommendations by cutoff date if provided
+                    if cutoff_date:
+                        # Convert cutoff_date to pandas Timestamp for comparison
+                        # Make sure it's timezone naive if the recommendations index is naive
+                        cutoff_ts = pd.Timestamp(cutoff_date)
+                        
+                        # Safely handle timezone comparison with proper type checking
+                        if not recommendations.empty:
+                            idx_tzinfo = getattr(recommendations.index[0], 'tzinfo', None)
+                            cutoff_tzinfo = getattr(cutoff_ts, 'tzinfo', None)
+                            
+                            # Synchronize timezone info
+                            if idx_tzinfo is None and cutoff_tzinfo is not None:
+                                cutoff_ts = cutoff_ts.replace(tzinfo=None)
+                            elif idx_tzinfo is not None and cutoff_tzinfo is None:
+                                try:
+                                    cutoff_ts = cutoff_ts.tz_localize(idx_tzinfo)
+                                except:
+                                    # If localization fails, make both naive
+                                    cutoff_ts = cutoff_ts.replace(tzinfo=None)
+                                    
+                        # Use scalar comparison for recommendations filtering
+                        filtered_rows = []
+                        for idx, row in recommendations.iterrows():
+                            try:
+                                if idx <= cutoff_ts:
+                                    filtered_rows.append(row)
+                            except TypeError:
+                                # If comparison fails, convert to string and compare dates
+                                idx_date = str(idx).split()[0] if hasattr(idx, '__str__') else ''
+                                cutoff_date_str = cutoff_ts.strftime('%Y-%m-%d')
+                                if idx_date <= cutoff_date_str:
+                                    filtered_rows.append(row)
+                                    
+                        if filtered_rows:
+                            # Create new DataFrame with filtered rows
+                            try:
+                                recommendations = pd.DataFrame(filtered_rows, index=[r.name for r in filtered_rows])
+                            except:
+                                # Fallback if r.name is not available
+                                recommendations = pd.DataFrame(filtered_rows)
+                        else:
+                            recommendations = pd.DataFrame()
+                    
                     # Calculate rating counts from the recommendations DataFrame
                     # Weight strongBuy and strongSell more heavily
                     rating_counts = {
@@ -203,14 +259,14 @@ class StockDataFetcher:
     def get_price_reaction(self, ticker: str, filing_date: str, days_before: int = 5, days_after: int = 5) -> Dict:
         """Analyze price reaction around a filing date."""
         try:
-            # Convert filing date to datetime
+            # Convert filing date to datetime (only for calculating date ranges)
             filing_dt = datetime.strptime(filing_date, "%Y-%m-%d")
             
-            # Calculate date range
+            # Calculate date range as strings
             start_date = (filing_dt - timedelta(days=days_before)).strftime("%Y-%m-%d")
             end_date = (filing_dt + timedelta(days=days_after)).strftime("%Y-%m-%d")
             
-            # Get historical prices for the period
+            # Get historical prices for the period using string dates
             price_data = self.get_historical_prices(ticker, start_date, end_date)
             if not price_data:
                 return {}
@@ -237,32 +293,84 @@ class StockDataFetcher:
             return {}
 
     def calculate_technical_indicators(self, price_data: Dict) -> Dict:
-        """Calculate technical indicators from price data using ta-lib."""
+        """Calculate technical indicators from price data. Falls back to pandas if talib is unavailable."""
         try:
             if not price_data or "close" not in price_data:
                 return {}
 
-            # Convert price data to numpy arrays for ta-lib
+            # Convert price data to numpy arrays for calculations
             close = np.array(price_data["close"], dtype=float)
             high = np.array(price_data["high"], dtype=float)
             low = np.array(price_data["low"], dtype=float)
             volume = np.array(price_data["volume"], dtype=float)
 
-            # Calculate technical indicators
-            indicators = {
-                "ticker": price_data["ticker"],
-                "sma_20": talib.SMA(close, timeperiod=20).tolist(),
-                "sma_50": talib.SMA(close, timeperiod=50).tolist(),
-                "sma_200": talib.SMA(close, timeperiod=200).tolist(),
-                "rsi": talib.RSI(close, timeperiod=14).tolist(),
-                "macd": talib.MACD(close)[0].tolist(),  # MACD line
-                "macd_signal": talib.MACD(close)[1].tolist(),  # Signal line
-                "macd_hist": talib.MACD(close)[2].tolist(),  # MACD histogram
-                "bollinger_bands": {
-                    "upper": talib.BBANDS(close)[0].tolist(),
-                    "middle": talib.BBANDS(close)[1].tolist(),
-                    "lower": talib.BBANDS(close)[2].tolist()
-                }
+            indicators = {"ticker": price_data["ticker"]}
+            
+            if TALIB_AVAILABLE:
+                # Use ta-lib if available
+                try:
+                    indicators.update({
+                        "sma_20": talib.SMA(close, timeperiod=20).tolist(),
+                        "sma_50": talib.SMA(close, timeperiod=50).tolist(),
+                        "sma_200": talib.SMA(close, timeperiod=200).tolist(),
+                        "rsi": talib.RSI(close, timeperiod=14).tolist(),
+                        "macd": talib.MACD(close)[0].tolist(),  # MACD line
+                        "macd_signal": talib.MACD(close)[1].tolist(),  # Signal line
+                        "macd_hist": talib.MACD(close)[2].tolist(),  # MACD histogram
+                        "bollinger_bands": {
+                            "upper": talib.BBANDS(close)[0].tolist(),
+                            "middle": talib.BBANDS(close)[1].tolist(),
+                            "lower": talib.BBANDS(close)[2].tolist()
+                        }
+                    })
+                    logger.info("Successfully used TA-Lib for technical indicators")
+                    return indicators
+                except Exception as e:
+                    logger.warning(f"TA-Lib failed, falling back to pandas implementation: {str(e)}")
+                    # Fall through to pandas implementation
+            
+            # Use pandas implementation
+            logger.info("Using pandas implementation for technical indicators")
+            
+            # Convert numpy arrays to pandas Series for easier calculations
+            close_series = pd.Series(close)
+            
+            # Calculate indicators using pandas
+            indicators.update({
+                "sma_20": close_series.rolling(window=20).mean().tolist(),
+                "sma_50": close_series.rolling(window=50).mean().tolist(),
+                "sma_200": close_series.rolling(window=200).mean().tolist(),
+            })
+            
+            # Calculate RSI
+            delta = close_series.diff()
+            gain = delta.where(delta > 0, 0).rolling(window=14).mean()
+            loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            indicators["rsi"] = rsi.tolist()
+            
+            # Calculate MACD (12,26,9)
+            exp1 = close_series.ewm(span=12, adjust=False).mean()
+            exp2 = close_series.ewm(span=26, adjust=False).mean()
+            macd = exp1 - exp2
+            signal = macd.ewm(span=9, adjust=False).mean()
+            hist = macd - signal
+            
+            indicators["macd"] = macd.tolist()
+            indicators["macd_signal"] = signal.tolist()
+            indicators["macd_hist"] = hist.tolist()
+            
+            # Calculate Bollinger Bands
+            sma_20 = close_series.rolling(window=20).mean()
+            std_20 = close_series.rolling(window=20).std()
+            upper_band = sma_20 + (std_20 * 2)
+            lower_band = sma_20 - (std_20 * 2)
+            
+            indicators["bollinger_bands"] = {
+                "upper": upper_band.tolist(),
+                "middle": sma_20.tolist(),
+                "lower": lower_band.tolist()
             }
 
             return indicators

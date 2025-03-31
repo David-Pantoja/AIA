@@ -19,18 +19,20 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 class InsightGenerator:
-    def __init__(self, openai_api_key: str, use_yfinance: bool = True, use_SEC: bool = True):
+    def __init__(self, openai_api_key: str, use_yfinance: bool = True, use_SEC: bool = True, cutoff_date: Optional[datetime] = None):
         """Initialize the InsightGenerator with OpenAI API key and data source flags."""
         self.openai_api_key = openai_api_key
         self.use_yfinance = use_yfinance
         self.use_SEC = use_SEC
+        self.cutoff_date = cutoff_date or datetime.now()
         self.sec_fetcher = SECFetcher()
         self.stock_fetcher = StockDataFetcher()
         openai.api_key = openai_api_key
 
     def _prepare_financial_data(self, ticker: str, quarters: int = 8, max_search: int = 100, 
                                use_SEC_override: Optional[bool] = None, 
-                               use_yfinance_override: Optional[bool] = None) -> Dict:
+                               use_yfinance_override: Optional[bool] = None,
+                               cutoff_date: Optional[datetime] = None) -> Dict:
         """Prepare financial data for analysis by combining SEC filings and market data.
         
         Args:
@@ -39,16 +41,15 @@ class InsightGenerator:
             max_search: Maximum number of iterations before terminating early
             use_SEC_override: Force enable/disable SEC data fetching for this call.
             use_yfinance_override: Force enable/disable yfinance data fetching for this call.
+            cutoff_date: Date to use as cutoff for data fetching (defaults to instance cutoff_date)
         """
         try:
+            # Use provided cutoff date or instance default
+            effective_cutoff = cutoff_date or self.cutoff_date
+            
             # Determine actual data source flags based on overrides
             fetch_sec = self.use_SEC if use_SEC_override is None else use_SEC_override
             fetch_yfinance = self.use_yfinance if use_yfinance_override is None else use_yfinance_override
-            
-            print(f"\nFetching data for {ticker} (SEC: {fetch_sec}, yFinance: {fetch_yfinance})")
-            if fetch_sec:
-                print(f"Target quarters: {quarters}")
-                print(f"Max search iterations: {max_search}")
             
             # Initialize data variables
             all_filings = []
@@ -59,53 +60,38 @@ class InsightGenerator:
 
             # Get SEC filings if enabled
             if fetch_sec:
-                print("\nFetching all SEC filings...")
                 all_filings = fetch_filings(
                     ticker, 
                     "ALL",
                     quarters=quarters,
-                    max_search=max_search
+                    max_search=max_search,
+                    cutoff_date=effective_cutoff  # Pass cutoff date to SEC fetcher
                 )
                 
                 if not all_filings:
                     logger.warning(f"No recent filings found for {ticker}")
                     return {}
 
-                # Group filings by type for logging
-                filings_by_type = {}
-                for filing in all_filings:
-                    filing_type = filing.get("form_type", "Unknown")
-                    if filing_type not in filings_by_type:
-                        filings_by_type[filing_type] = []
-                    filings_by_type[filing_type].append(filing)
-
-                # Print summary of filings found
-                for filing_type, filings in filings_by_type.items():
-                    print(f"\nFound {len(filings)} {filing_type} filings:")
-                    for filing in filings:
-                        print(f"- {filing['filing_date']}: {filing.get('financials', {}).get('Revenue', 'N/A')} Revenue")
-
             # Get market data if enabled
             if fetch_yfinance:
-                print("\nFetching market data...")
                 fetcher = StockDataFetcher()
                 
-                # Get analyst ratings
-                analyst_ratings = fetcher.get_analyst_ratings(ticker)
-                if analyst_ratings:
-                    print(f"Latest rating: {analyst_ratings.get('latest_rating', 'N/A')}")
-                    print(f"Price target: {analyst_ratings.get('latest_target', 'N/A')}")
+                # Convert datetime to string for yfinance (use string dates as in tmp.py)
+                cutoff_date_str = effective_cutoff.strftime("%Y-%m-%d")
+                start_date_str = (effective_cutoff - timedelta(days=365)).strftime("%Y-%m-%d")
                 
-                # Get historical prices for technical indicators
+                # Get analyst ratings - passing datetime object as before
+                analyst_ratings = fetcher.get_analyst_ratings(ticker, cutoff_date=effective_cutoff)
+                
+                # Get historical prices for technical indicators - using string dates
                 price_data = fetcher.get_historical_prices(
                     ticker,
-                    start_date=(datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d"),
-                    end_date=datetime.now().strftime("%Y-%m-%d")
+                    start_date=start_date_str,
+                    end_date=cutoff_date_str
                 )
                 
                 if price_data:
                     technical_indicators = fetcher.calculate_technical_indicators(price_data)
-                    print("Calculated technical indicators")
 
             return {
                 "filings": all_filings,
@@ -128,7 +114,7 @@ class InsightGenerator:
             Base your assessment ONLY on your general knowledge of this company, its sector, and overall market conditions. 
             Do NOT assume you have been given specific financial data, filings, or technical indicators for this ticker.
 
-            Provide a probabilistic recommendation (buy/hold/sell) with confidence levels.
+            Provide a probabilistic recommendation (buy/hold/sell) with confidence levels and price targets for both 1-month and 12-month timeframes.
 
             Format your response as JSON with the following structure:
             {{
@@ -139,7 +125,10 @@ class InsightGenerator:
                 "buy_probability": 0.0,
                 "hold_probability": 0.0,
                 "sell_probability": 0.0,
-                "confidence_level": 0.0 
+                "confidence_level": 0.0,
+                "price_target_1m": {{"low": 0.0, "mid": 0.0, "high": 0.0}},
+                "price_target": {{"low": 0.0, "mid": 0.0, "high": 0.0}},
+                "price_target_timeframe": "12 months"
               }},
               "risk_factors": ["General risks associated with this type of company/sector."],
               "technical_analysis": {{}},
@@ -177,6 +166,7 @@ Recent Filings Summary:
         if use_yfinance_data:
             tech_indicators = financial_data.get("technical_indicators", {})
             price_data = financial_data.get("price_data", {})
+            analyst_ratings = financial_data.get("analyst_ratings", {})
             
             if price_data and "close" in price_data:
                 latest_price = price_data["close"][-1] if price_data["close"] else "N/A"
@@ -185,9 +175,20 @@ Recent Filings Summary:
                 latest_price = "N/A"
                 latest_volume = "N/A"
             
+            # Add analyst price targets if available
+            price_target_info = ""
+            if analyst_ratings:
+                mean_target = analyst_ratings.get("mean_target")
+                median_target = analyst_ratings.get("median_target")
+                if mean_target is not None or median_target is not None:
+                    price_target_info = f"""
+Analyst Price Targets:
+  Mean Target: ${mean_target if mean_target is not None else 'N/A'}
+  Median Target: ${median_target if median_target is not None else 'N/A'}"""
+            
             prompt_sections.append(f"""Market Data:
 Price: ${latest_price}
-Volume: {latest_volume}
+Volume: {latest_volume}{price_target_info}
 RSI: {tech_indicators.get('rsi', 'N/A')}
 MACD: {tech_indicators.get('macd', 'N/A')}
 SMA 20: ${tech_indicators.get('sma_20', 'N/A')}
@@ -205,7 +206,8 @@ Bollinger Bands:
 1. A concise summary of key performance indicators
 2. Your assessment of the company's financial health
 3. A probabilistic recommendation (buy/hold/sell) with confidence levels
-4. Key risk factors to consider
+4. Price targets for both 1-month and 12-month timeframes, each with low, mid, and high ranges
+5. Key risk factors to consider
 
 Format your response as JSON with the following structure:
 {{
@@ -216,7 +218,18 @@ Format your response as JSON with the following structure:
     "buy_probability": 0.0,
     "hold_probability": 0.0,
     "sell_probability": 0.0,
-    "confidence_level": 0.0
+    "confidence_level": 0.0,
+    "price_target_1m": {{
+      "low": 0.0,
+      "mid": 0.0,
+      "high": 0.0
+    }},
+    "price_target": {{
+      "low": 0.0,
+      "mid": 0.0,
+      "high": 0.0
+    }},
+    "price_target_timeframe": "12 months"
   }},
   "risk_factors": [],
   "technical_analysis": {{
@@ -235,7 +248,8 @@ Format your response as JSON with the following structure:
 
     def generate_insight(self, ticker: str, quarters: int = 8, max_search: int = 100,
                        use_SEC_override: Optional[bool] = None, 
-                       use_yfinance_override: Optional[bool] = None) -> Dict:
+                       use_yfinance_override: Optional[bool] = None,
+                       cutoff_date: Optional[datetime] = None) -> Dict:
         """Generate investment insight for a given ticker. Can be run in 'blind' mode using overrides.
         
         Args:
@@ -244,6 +258,7 @@ Format your response as JSON with the following structure:
             max_search: Maximum number of iterations before terminating early
             use_SEC_override: Force disable SEC data for this call (for blind mode).
             use_yfinance_override: Force disable yfinance data for this call (for blind mode).
+            cutoff_date: Date to use as cutoff for data fetching (defaults to instance cutoff_date)
         """
         try:
             # Determine if this is a blind run
@@ -253,7 +268,8 @@ Format your response as JSON with the following structure:
             financial_data = self._prepare_financial_data(
                 ticker, quarters, max_search, 
                 use_SEC_override=use_SEC_override, 
-                use_yfinance_override=use_yfinance_override
+                use_yfinance_override=use_yfinance_override,
+                cutoff_date=cutoff_date
             )
             
             # Check if data prep failed (only relevant for non-blind runs, blind runs expect empty data)
@@ -294,22 +310,288 @@ Format your response as JSON with the following structure:
                     content = content.replace("```json", "").replace("```", "").strip()
                 
                 # Try to parse the response as JSON
-                analysis = json.loads(content)
-                
+                try:
+                    analysis = json.loads(content)
+                except json.JSONDecodeError as je:
+                    # Try to fix common JSON issues
+                    logger.warning(f"Initial JSON parsing failed: {je}. Attempting to fix JSON...")
+                    
+                    try:
+                        # Fix 1: Normalize indentation issues by manually rebuilding the JSON
+                        # Find main sections and rebuild properly
+                        import re
+                        
+                        # Define a regular expression to find all top-level keys and their contents
+                        pattern = r'"([^"]+)"\s*:\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]|"[^"]*"|[^,}\]]*)'
+                        matches = re.findall(pattern, content)
+                        
+                        # Rebuild the JSON structure
+                        fixed_content = "{"
+                        for i, (key, value) in enumerate(matches):
+                            fixed_content += f'"{key}": {value}'
+                            if i < len(matches) - 1:
+                                fixed_content += ","
+                        fixed_content += "}"
+                        
+                        # Try parsing the rebuilt content
+                        try:
+                            analysis = json.loads(fixed_content)
+                            logger.info("Successfully parsed JSON after fixing structure")
+                        except json.JSONDecodeError:
+                            # Fix 2: Try normalizing whitespace and quotes
+                            import re
+                            
+                            # Replace all whitespace variations with a single space in certain contexts
+                            fixed_content = re.sub(r':\s+\{', ': {', content)
+                            fixed_content = re.sub(r',\s+', ', ', fixed_content)
+                            fixed_content = re.sub(r':\s+', ': ', fixed_content)
+                            fixed_content = re.sub(r'\s+}', ' }', fixed_content)
+                            
+                            # Fix unescaped newlines in strings
+                            fixed_content = re.sub(r'"([^"]*)\n([^"]*)"', r'"\1\\n\2"', fixed_content)
+                            
+                            try:
+                                analysis = json.loads(fixed_content)
+                                logger.info("Successfully parsed JSON after fixing whitespace")
+                            except json.JSONDecodeError:
+                                # Fix 3: Even more aggressive cleanup - use a library like json5 if available
+                                try:
+                                    try:
+                                        import json5
+                                        analysis = json5.loads(content)
+                                        logger.info("Successfully parsed JSON using json5")
+                                    except ImportError:
+                                        # If json5 not available, use a more extreme approach:
+                                        # Remove all newlines and normalize spacing
+                                        fixed_content = re.sub(r'\s+', ' ', content)
+                                        fixed_content = fixed_content.replace("'", '"').replace(': "', ':"').replace('", ', '",')
+                                        # Try to fix trailing commas before closing brackets
+                                        fixed_content = re.sub(r',\s*}', '}', fixed_content)
+                                        fixed_content = re.sub(r',\s*]', ']', fixed_content)
+                                        
+                                        analysis = json.loads(fixed_content)
+                                        logger.info("Successfully parsed JSON after aggressive cleaning")
+                                except Exception as e:
+                                    # Fix 4: Last resort - try to extract and rebuild JSON manually
+                                    try:
+                                        # Extract basic structure and key components
+                                        sections = {}
+                                        for section in ["summary", "financial_health", "recommendation", "risk_factors", "technical_analysis", "market_sentiment"]:
+                                            pattern = rf'"{section}"\s*:\s*(.*?)(?=,"[^"]+":|\}}$)'
+                                            match = re.search(pattern, content, re.DOTALL)
+                                            if match:
+                                                sections[section] = match.group(1).strip()
+                                        
+                                        # Manually construct a valid JSON
+                                        manual_json = {
+                                            "summary": sections.get("summary", "").replace('"', '').strip('"{}[], '),
+                                            "financial_health": sections.get("financial_health", "").replace('"', '').strip('"{}[], '),
+                                            "recommendation": {},
+                                            "risk_factors": [],
+                                            "technical_analysis": {},
+                                            "market_sentiment": {}
+                                        }
+                                        
+                                        # Parse recommendation if available
+                                        if "recommendation" in sections:
+                                            rec_str = sections["recommendation"]
+                                            # Extract key values with regex
+                                            action_match = re.search(r'"action"\s*:\s*"([^"]*)"', rec_str)
+                                            buy_prob_match = re.search(r'"buy_probability"\s*:\s*([\d.]+)', rec_str)
+                                            hold_prob_match = re.search(r'"hold_probability"\s*:\s*([\d.]+)', rec_str)
+                                            sell_prob_match = re.search(r'"sell_probability"\s*:\s*([\d.]+)', rec_str)
+                                            conf_match = re.search(r'"confidence_level"\s*:\s*([\d.]+)', rec_str)
+                                            
+                                            # Extract price targets
+                                            pt_low_match = re.search(r'"price_target"\s*:\s*\{\s*"low"\s*:\s*([\d.]+)', rec_str)
+                                            pt_mid_match = re.search(r'"mid"\s*:\s*([\d.]+)', rec_str)
+                                            pt_high_match = re.search(r'"high"\s*:\s*([\d.]+)', rec_str)
+                                            
+                                            # Extract 1-month price targets
+                                            pt_1m_low_match = re.search(r'"price_target_1m"\s*:\s*\{\s*"low"\s*:\s*([\d.]+)', rec_str)
+                                            pt_1m_mid_match = re.search(r'"mid"\s*:\s*([\d.]+)', rec_str, re.DOTALL)
+                                            pt_1m_high_match = re.search(r'"high"\s*:\s*([\d.]+)', rec_str, re.DOTALL)
+                                            
+                                            # Build recommendation dict
+                                            manual_json["recommendation"] = {
+                                                "action": action_match.group(1) if action_match else "hold",
+                                                "buy_probability": float(buy_prob_match.group(1)) if buy_prob_match else 0.33,
+                                                "hold_probability": float(hold_prob_match.group(1)) if hold_prob_match else 0.34,
+                                                "sell_probability": float(sell_prob_match.group(1)) if sell_prob_match else 0.33,
+                                                "confidence_level": float(conf_match.group(1)) if conf_match else 0.5,
+                                                "price_target": {
+                                                    "low": float(pt_low_match.group(1)) if pt_low_match else 0.0,
+                                                    "mid": float(pt_mid_match.group(1)) if pt_mid_match else 0.0,
+                                                    "high": float(pt_high_match.group(1)) if pt_high_match else 0.0
+                                                },
+                                                "price_target_1m": {
+                                                    "low": float(pt_1m_low_match.group(1)) if pt_1m_low_match else 0.0,
+                                                    "mid": float(pt_1m_mid_match.group(1)) if pt_1m_mid_match else 0.0,
+                                                    "high": float(pt_1m_high_match.group(1)) if pt_1m_high_match else 0.0
+                                                },
+                                                "price_target_timeframe": "12 months"
+                                            }
+                                        
+                                        # Parse risk factors if available
+                                        if "risk_factors" in sections:
+                                            risk_str = sections["risk_factors"]
+                                            if risk_str.startswith("[") and risk_str.endswith("]"):
+                                                # Try to parse the array
+                                                try:
+                                                    manual_json["risk_factors"] = json.loads(risk_str)
+                                                except:
+                                                    # Extract items manually
+                                                    items = re.findall(r'"([^"]+)"', risk_str)
+                                                    manual_json["risk_factors"] = items
+                                        
+                                        # Use this as our analysis
+                                        analysis = manual_json
+                                        logger.info("Successfully reconstructed JSON manually")
+                                    except Exception as final_e:
+                                        # If all parsing attempts fail, raise the original error
+                                        logger.error(f"All JSON parsing attempts failed: {str(final_e)}")
+                                        raise je
+                    except Exception as e:
+                        logger.error(f"Error during JSON parsing fix attempts: {str(e)}")
+                        # Create a minimal valid structure
+                        analysis = {
+                            "summary": "Error parsing model output",
+                            "financial_health": "Unknown due to parsing error",
+                            "recommendation": {
+                                "action": "hold",
+                                "buy_probability": 0.33,
+                                "hold_probability": 0.34,
+                                "sell_probability": 0.33,
+                                "confidence_level": 0.5,
+                                "price_target_1m": {"low": 0.0, "mid": 0.0, "high": 0.0},
+                                "price_target": {"low": 0.0, "mid": 0.0, "high": 0.0},
+                                "price_target_timeframe": "12 months"
+                            },
+                            "risk_factors": ["Parsing error occurred"],
+                            "technical_analysis": {"trend": "unknown", "momentum": "unknown", "support_resistance": "unknown"},
+                            "market_sentiment": {"analyst_consensus": "unknown", "price_momentum": "unknown", "volume_trend": "unknown"}
+                        }
+                        logger.warning(f"Created fallback analysis structure due to parsing errors")
+            
                 # Validate required fields
                 required_fields = ["summary", "financial_health", "recommendation", "risk_factors", "technical_analysis", "market_sentiment"]
                 missing_fields = [field for field in required_fields if field not in analysis]
                 if missing_fields:
                     logger.error(f"Missing required fields in GPT response: {missing_fields}")
-                    return {}
+                    # Add missing fields with defaults instead of returning empty
+                    for field in missing_fields:
+                        if field == "recommendation":
+                            analysis["recommendation"] = {
+                                "action": "hold",
+                                "buy_probability": 0.33,
+                                "hold_probability": 0.34,
+                                "sell_probability": 0.33,
+                                "confidence_level": 0.5,
+                                "price_target_1m": {"low": 0.0, "mid": 0.0, "high": 0.0},
+                                "price_target": {"low": 0.0, "mid": 0.0, "high": 0.0},
+                                "price_target_timeframe": "12 months"
+                            }
+                        elif field == "risk_factors":
+                            analysis["risk_factors"] = ["No risk factors provided"]
+                        elif field in ["technical_analysis", "market_sentiment"]:
+                            analysis[field] = {}
+                        else:
+                            analysis[field] = "No information provided"
+                    logger.info(f"Added default values for missing fields: {missing_fields}")
                 
                 # Validate recommendation structure
                 recommendation = analysis.get("recommendation", {})
-                required_rec_fields = ["action", "buy_probability", "hold_probability", "sell_probability", "confidence_level"]
+                required_rec_fields = ["action", "buy_probability", "hold_probability", "sell_probability", "confidence_level", "price_target", "price_target_1m", "price_target_timeframe"]
                 missing_rec_fields = [field for field in required_rec_fields if field not in recommendation]
                 if missing_rec_fields:
                     logger.error(f"Missing required fields in recommendation: {missing_rec_fields}")
-                    return {}
+                    
+                    # Add default values for missing recommendation fields
+                    for field in missing_rec_fields:
+                        if field == "action":
+                            recommendation["action"] = "hold"
+                        elif field in ["buy_probability", "hold_probability", "sell_probability"]:
+                            # Set default probabilities that sum to 1.0
+                            if "buy_probability" not in recommendation:
+                                recommendation["buy_probability"] = 0.33
+                            if "hold_probability" not in recommendation:
+                                recommendation["hold_probability"] = 0.34
+                            if "sell_probability" not in recommendation:
+                                recommendation["sell_probability"] = 0.33
+                        elif field == "confidence_level":
+                            recommendation["confidence_level"] = 0.5
+                        elif field == "price_target_timeframe":
+                            recommendation["price_target_timeframe"] = "12 months"
+                        elif field == "price_target_1m":
+                            # Add default values for missing price target fields
+                            logger.warning("Missing 1-month price target, setting defaults")
+                            # If we have latest price, use it as base for default targets
+                            latest_price = None
+                            if financial_data.get("price_data", {}).get("close"):
+                                latest_price = financial_data["price_data"]["close"][-1]
+                            
+                            if latest_price:
+                                recommendation["price_target_1m"] = {
+                                    "low": round(latest_price * 0.95, 2),
+                                    "mid": round(latest_price * 1.0, 2),
+                                    "high": round(latest_price * 1.05, 2)
+                                }
+                            else:
+                                recommendation["price_target_1m"] = {"low": 0.0, "mid": 0.0, "high": 0.0}
+                        elif field == "price_target":
+                            # Add default values for missing price target fields
+                            logger.warning("Missing 12-month price target, setting defaults")
+                            # If we have latest price, use it as base for default targets
+                            latest_price = None
+                            if financial_data.get("price_data", {}).get("close"):
+                                latest_price = financial_data["price_data"]["close"][-1]
+                            
+                            if latest_price:
+                                recommendation["price_target"] = {
+                                    "low": round(latest_price * 0.9, 2),
+                                    "mid": round(latest_price * 1.0, 2),
+                                    "high": round(latest_price * 1.1, 2)
+                                }
+                            else:
+                                recommendation["price_target"] = {"low": 0.0, "mid": 0.0, "high": 0.0}
+                    
+                    logger.info(f"Added default values for missing recommendation fields: {missing_rec_fields}")
+                
+                # Validate price target structure
+                price_target = recommendation.get("price_target", {})
+                if not isinstance(price_target, dict) or not all(k in price_target for k in ["low", "mid", "high"]):
+                    logger.warning("Invalid price target structure, setting defaults")
+                    # If we have latest price, use it as base for default targets
+                    latest_price = None
+                    if financial_data.get("price_data", {}).get("close"):
+                        latest_price = financial_data["price_data"]["close"][-1]
+                    
+                    if latest_price:
+                        recommendation["price_target"] = {
+                            "low": round(latest_price * 0.9, 2),
+                            "mid": round(latest_price * 1.0, 2),
+                            "high": round(latest_price * 1.1, 2)
+                        }
+                    else:
+                        recommendation["price_target"] = {"low": 0.0, "mid": 0.0, "high": 0.0}
+                
+                # Validate 1-month price target structure
+                price_target_1m = recommendation.get("price_target_1m", {})
+                if not isinstance(price_target_1m, dict) or not all(k in price_target_1m for k in ["low", "mid", "high"]):
+                    logger.warning("Invalid 1-month price target structure, setting defaults")
+                    # If we have latest price, use it as base for default targets
+                    latest_price = None
+                    if financial_data.get("price_data", {}).get("close"):
+                        latest_price = financial_data["price_data"]["close"][-1]
+                    
+                    if latest_price:
+                        recommendation["price_target_1m"] = {
+                            "low": round(latest_price * 0.95, 2),
+                            "mid": round(latest_price * 1.0, 2),
+                            "high": round(latest_price * 1.05, 2)
+                        }
+                    else:
+                        recommendation["price_target_1m"] = {"low": 0.0, "mid": 0.0, "high": 0.0}
                 
                 # Validate probability distribution
                 probs = {
@@ -321,8 +603,13 @@ Format your response as JSON with the following structure:
                 if abs(total - 1.0) > 0.0001:
                     logger.warning(f"Probabilities do not sum to 1.0 (sum: {total})")
                     # Normalize probabilities
-                    for key in probs:
-                        probs[key] /= total
+                    if total > 0:
+                        for key in probs:
+                            probs[key] /= total
+                    else:
+                        # If all are zero, assign default probabilities
+                        probs = {"buy": 0.33, "hold": 0.34, "sell": 0.33}
+                    
                     recommendation["buy_probability"] = probs["buy"]
                     recommendation["hold_probability"] = probs["hold"]
                     recommendation["sell_probability"] = probs["sell"]

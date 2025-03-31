@@ -48,20 +48,23 @@ def main():
     # Get ticker symbol from user
     ticker = input("Enter ticker symbol (e.g., AAPL): ").strip().upper()
     
+    # Set cutoff date to July 18, 2024
+    cutoff_date = datetime(2024, 7, 18)
+    
     # Initialize fetchers
-    insight_generator = InsightGenerator()
+    insight_generator = InsightGenerator(cutoff_date=cutoff_date)
     stock_fetcher = StockDataFetcher()
     
-    print(f"\nFetching data for {ticker}...")
+    print(f"\nFetching data for {ticker} as of {cutoff_date.strftime('%Y-%m-%d')}...")
     
     # Get latest insights
     print("\nGenerating investment insights...")
-    insights = insight_generator.get_latest_insights(ticker)
+    insights = insight_generator.get_latest_insights(ticker, cutoff_date=cutoff_date)
     print(format_insights(insights))
     
     # Get analyst ratings
     print("\nFetching analyst ratings...")
-    ratings = stock_fetcher.get_analyst_ratings(ticker)
+    ratings = stock_fetcher.get_analyst_ratings(ticker, cutoff_date=cutoff_date)
     print(f"""
 Analyst Ratings:
 Mean Target Price: ${ratings.get('mean_target', 'N/A')}
@@ -76,7 +79,7 @@ Sell Ratings: {ratings.get('sell_ratings', 0)}
     # Get recent SEC filings
     print("\nFetching recent SEC filings...")
     for filing_type in ["10-Q", "10-K", "8-K"]:
-        filings = fetch_filings(ticker, filing_type)
+        filings = fetch_filings(ticker, filing_type, cutoff_date=cutoff_date)
         if filings:
             print(f"\nRecent {filing_type} Filings:")
             for filing in filings[:3]:  # Show last 3 filings
@@ -90,9 +93,9 @@ Sell Ratings: {ratings.get('sell_ratings', 0)}
         "insights": insights,
         "ratings": ratings,
         "filings": {
-            "10-Q": fetch_filings(ticker, "10-Q"),
-            "10-K": fetch_filings(ticker, "10-K"),
-            "8-K": fetch_filings(ticker, "8-K")
+            "10-Q": fetch_filings(ticker, "10-Q", cutoff_date=cutoff_date),
+            "10-K": fetch_filings(ticker, "10-K", cutoff_date=cutoff_date),
+            "8-K": fetch_filings(ticker, "8-K", cutoff_date=cutoff_date)
         }
     }
     

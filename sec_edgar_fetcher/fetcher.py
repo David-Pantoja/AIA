@@ -307,7 +307,7 @@ class SECFetcher:
 
     @rate_limited
     @retry_on_http_error
-    def get_submissions(self, cik: str, max_items: int = 50, quarters: int = None, max_search: int = None) -> List[Dict]:
+    def get_submissions(self, cik: str, max_items: int = 50, quarters: int = None, max_search: int = None, cutoff_date: Optional[datetime] = None) -> List[Dict]:
         """Fetch submission metadata for a given CIK using the submissions endpoint.
         
         Args:
@@ -315,6 +315,7 @@ class SECFetcher:
             max_items: Maximum number of items to process (default: 50)
             quarters: Number of quarterly/annual reports to find (10-Q + 10-K count)
             max_search: Maximum number of iterations before terminating early
+            cutoff_date: Optional datetime to use as cutoff for data fetching
         """
         # Ensure CIK is properly formatted (10 digits with leading zeros)
         cik = str(cik).zfill(10)
@@ -352,7 +353,7 @@ class SECFetcher:
             logger.info(f"Found {len(indices_8k)} 8-K filings listed.")
             
             submissions = []
-            current_date = datetime.now()
+            current_date = cutoff_date or datetime.now()
             quarterly_report_count = 0
             processed_indices = set()
             latest_quarterly_date = None
@@ -379,7 +380,7 @@ class SECFetcher:
                     
                     try:
                         filing_dt = datetime.strptime(filing_date_str, "%Y-%m-%d")
-                        if filing_dt.year < 2000 or filing_dt > (current_date + timedelta(days=90)):
+                        if filing_dt.year < 2000 or filing_dt > current_date:
                             continue
                     except ValueError:
                         continue
@@ -416,7 +417,7 @@ class SECFetcher:
                         # Only include 8-K filings from the date of the most recent quarterly report
                         if filing_dt < latest_quarterly_date:
                             continue
-                        if filing_dt.year < 2000 or filing_dt > (current_date + timedelta(days=90)):
+                        if filing_dt.year < 2000 or filing_dt > current_date:
                             continue
                     except ValueError:
                         continue
@@ -532,15 +533,17 @@ class SECFetcher:
 
     # fetch_filings method remains largely the same, but relies on the updated get_submissions and get_filing_document
     def fetch_filings(self, ticker: str, filing_type: str, date_range: Optional[tuple] = None, 
-                     quarters: int = None, max_search: int = None) -> List[Dict]:
+                     quarters: int = None, max_search: int = None,
+                     cutoff_date: Optional[datetime] = None) -> List[Dict]:
         """Fetch filings for a given ticker, filing type, and optional date range.
         
         Args:
             ticker: The stock ticker symbol
             filing_type: Type of filing to fetch ("10-K", "10-Q", "8-K", or "ALL")
-            date_range: Optional tuple of (start_date, end_date) - Note: Currently not implemented in filtering.
+            date_range: Optional tuple of (start_date, end_date)
             quarters: Number of quarterly/annual reports to find (10-Q + 10-K count)
-            max_search: Maximum number of iterations before terminating early - Note: Currently not used by get_submissions.
+            max_search: Maximum number of iterations before terminating early
+            cutoff_date: Optional datetime to use as cutoff for data fetching
         """
         cik = self.get_cik(ticker)
         if not cik:
@@ -549,7 +552,7 @@ class SECFetcher:
 
         # Get relevant submission metadata based on 'quarters' param for 10-K/Q
         # get_submissions handles the logic of combining 10-K/Q up to 'quarters' and all relevant 8-K
-        submissions_metadata = self.get_submissions(cik, quarters=quarters)
+        submissions_metadata = self.get_submissions(cik, quarters=quarters, cutoff_date=cutoff_date)
         
         if not submissions_metadata:
             logger.warning(f"No submission metadata found for CIK {cik} with given criteria.")
