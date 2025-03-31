@@ -1,2 +1,0 @@
-ticker,quarterly_reports_found,mse,yfinance_probabilities,model_probabilities
-AAPL,0,0.035348813043088775,"{'strongBuy': 0.16393442622950818, 'buy': 0.47540983606557374, 'hold': 0.28415300546448086, 'sell': 0.03825136612021858, 'strongSell': 0.03825136612021858}","{'strongBuy': 0.09, 'buy': 0.21, 'hold': 0.6, 'sell': 0.06999999999999999, 'strongSell': 0.03}"

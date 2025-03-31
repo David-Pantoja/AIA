@@ -14,7 +14,10 @@ MAX_SEARCH = 300  # Maximum number of search iterations
 
 # List of tickers to benchmark
 TICKERS = [
-    "AAPL","MSFT", "GOOGL", "AMZN", "META", # Tech
+    "AAPL","MSFT",
+     
+ ] 
+tmp = ["GOOGL", "AMZN", "META", # Tech
     "JPM", "BAC", "GS", "MS", "V",  # Financials
     "JNJ", "PFE", "UNH", "MRK", "ABBV",  # Healthcare
     "XOM", "CVX", "COP", "SLB", "EOG",  # Energy
@@ -90,6 +93,10 @@ def process_ticker(ticker: str) -> Dict:
 
 def save_results(results: List[Dict], filename: str = None):
     """Save results to a CSV file."""
+    if not results:
+        print("\nNo results to save.")
+        return
+        
     if not filename:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"benchmark_results_{timestamp}.csv"
@@ -97,12 +104,19 @@ def save_results(results: List[Dict], filename: str = None):
     # Convert results to DataFrame
     df = pd.DataFrame(results)
     
-    # Reorder columns for better readability
+    # Define columns in order of preference
     columns = [
         "ticker", "quarterly_reports_found",
         "mse", "yfinance_probabilities", "model_probabilities"
     ]
-    df = df[columns]
+    
+    # Only include columns that exist in the DataFrame
+    available_columns = [col for col in columns if col in df.columns]
+    if not available_columns:
+        print("\nNo valid columns found in results.")
+        return
+        
+    df = df[available_columns]
     
     # Save to CSV
     df.to_csv(filename, index=False)
@@ -111,9 +125,12 @@ def save_results(results: List[Dict], filename: str = None):
     # Print summary statistics
     print("\nSummary Statistics:")
     print(f"Total tickers processed: {len(results)}")
-    print(f"Average MSE: {df['mse'].mean():.6f}")
-    print(f"Average quarterly reports found: {df['quarterly_reports_found'].mean():.2f}")
-    print(f"Success rate: {(df['mse'].notna().sum() / len(df)) * 100:.1f}%")
+    if "mse" in df.columns:
+        print(f"Average MSE: {df['mse'].mean():.6f}")
+    if "quarterly_reports_found" in df.columns:
+        print(f"Average quarterly reports found: {df['quarterly_reports_found'].mean():.2f}")
+    if "mse" in df.columns:
+        print(f"Success rate: {(df['mse'].notna().sum() / len(df)) * 100:.1f}%")
 
 def main():
     # Get OpenAI API key
