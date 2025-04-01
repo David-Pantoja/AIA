@@ -24,22 +24,22 @@ TICKERS = [
     "CRM", "ADBE", "ORCL", "IBM", "SAP",  # Enterprise Software
     "CSCO", "AVGO", "QCOM", "TXN", "NXPI",  # Networking/Hardware
     "PYPL", "SQ", "ADYEY", "V", "MA",  # Fintech
-    
+    "ZM", "CRWD", "F", #others
     "JPM", "BAC", "GS", "MS", "WFC",  # Banking
     "BLK", "BX", "KKR", "C", "AXP",  # Financial Services
     "PGR", "ALL", "TRV", "CB", "MET",  # Insurance
     
     "JNJ", "PFE", "UNH", "MRK", "ABBV",  # Healthcare/Pharma
     "MDT", "TMO", "DHR", "ABT", "ISRG",  # Medical Devices/Equipment
-    
+
     "XOM", "CVX", "COP", "SLB", "EOG",  # Oil & Gas
     "NEE", "DUK", "SO", "AEP", "PCG",  # Utilities
     
     "PG", "KO", "WMT", "MCD", "DIS",  # Consumer Staples/Entertainment
     "NKE", "SBUX", "LULU", "TGT", "HD",  # Retail
     "PEP", "KHC", "GIS", "K", "CAG",  # Food & Beverage
-    
-    "TSLA", "GM", "F", "TM", "VWAGY",  # Auto
+
+    "TSLA", "GM", "TM", "VWAGY",  # Auto
     "BA", "LMT", "RTX", "GE", "HON",  # Aerospace/Industrial
     
     "NFLX", "CMCSA", "CHTR", "ROKU", "SPOT",  # Media/Streaming
@@ -48,8 +48,8 @@ TICKERS = [
     "AMGN", "GILD", "BIIB", "MRNA", "REGN",  # Biotech
     "ABNB", "UBER", "LYFT", "DASH", "BKNG",  # Travel/Mobility
     
-    "TWLO", "NET", "ZS", "OKTA", "CRWD",  # Cloud Security
-    "NOW", "TEAM", "ZM", "DOCU", "WDAY"   # SaaS
+    "TWLO", "NET", "ZS", "OKTA",   # Cloud Security
+    "NOW", "TEAM", "DOCU", "WDAY"   # SaaS
 ]
 
 # Quiet config output

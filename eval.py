@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 import yfinance as yf
 
-CSVy = "benchmark_results_20250301_20250331_142512.csv"
+CSVy = "benchmark_results.csv"
 
 def calculate_score(probabilities):
     """
@@ -455,7 +455,7 @@ def print_results_with_prices(results):
         print(f"  Regular Model: {model_corr:.4f}" if model_corr is not None else "  Regular Model: N/A")
         print(f"  Blind Model: {blind_corr:.4f}" if blind_corr is not None else "  Blind Model: N/A")
 
-def evaluate_price_targets(csv_path, target_timeframe="12m"):
+def evaluate_price_targets(csv_path, target_timeframe="1m"):
     """
     Evaluate model price targets against current stock prices.
     
@@ -894,86 +894,50 @@ if __name__ == "__main__":
     # File path for the benchmark results
     csv_path = CSVy
     
-    # You can change these settings to control what evaluations to run
-    run_12m_evaluation = True
+    # Configure settings to only run 1-month evaluation
     run_1m_evaluation = True
-    run_comparison = True
-    run_probability_evaluation = False
-    save_to_csv = False
+    save_to_csv = True
     
-    # Store results for comparison
-    results_12m = None
+    # Store results
     results_1m = None
     
     # ===== Price Target Evaluations =====
-    if run_12m_evaluation:
-        print("\n====== EVALUATING 12-MONTH PRICE TARGETS ======\n")
-        results_12m = evaluate_price_targets(csv_path, target_timeframe="12m")
-        print_price_target_results(results_12m)
-    
     if run_1m_evaluation:
-        print("\n\n====== EVALUATING 1-MONTH PRICE TARGETS ======\n")
+        print("\n====== EVALUATING 1-MONTH PRICE TARGETS ======\n")
         results_1m = evaluate_price_targets(csv_path, target_timeframe="1m")
         print_price_target_results(results_1m)
-    
-    # ===== Compare Timeframes =====
-    if run_comparison and results_12m and results_1m:
-        compare_timeframe_results(results_12m, results_1m)
-    
-    # ===== Probability Score Evaluation =====
-    if run_probability_evaluation:
-        # Define the date range for probability score analysis
-        start_date = "2025-02-28"  # Cutoff date
-        end_date = datetime.now().strftime('%Y-%m-%d')  # Current date
         
-        # Set this to True to include dividends in the performance calculation
-        use_total_return = True
-        
-        print("\n\n====== EVALUATING PROBABILITY SCORES ======\n")
-        # Evaluate predictions with actual price data
-        prob_results = evaluate_predictions_with_prices(csv_path, start_date, end_date, use_total_return)
-        
-        # Print results
-        print_results_with_prices(prob_results)
-    
-    # ===== Export Results to CSV =====
-    if save_to_csv and (run_12m_evaluation or run_1m_evaluation):
-        # Convert results to DataFrame
-        def results_to_df(results):
-            return pd.DataFrame([
-                {
-                    'ticker': r['ticker'],
-                    'cutoff_price': r['price_at_cutoff'],
-                    'current_price': r['current_price'],
-                    'percent_change': r.get('percent_change'),
-                    'timeframe': r.get('timeframe', '12m'),
-                    'model_target_low': r['model_price_target']['low'] if r.get('model_price_target') else None,
-                    'model_target_mid': r['model_price_target']['mid'] if r.get('model_price_target') else None,
-                    'model_target_high': r['model_price_target']['high'] if r.get('model_price_target') else None,
-                    'blind_target_low': r['blind_price_target']['low'] if r.get('blind_price_target') else None,
-                    'blind_target_mid': r['blind_price_target']['mid'] if r.get('blind_price_target') else None,
-                    'blind_target_high': r['blind_price_target']['high'] if r.get('blind_price_target') else None,
-                    'model_target_accurate': r.get('model_target_accurate'),
-                    'blind_target_accurate': r.get('blind_target_accurate'),
-                    'model_error': r.get('model_error'),
-                    'blind_error': r.get('blind_error'),
-                    'model_error_percent': r.get('model_error_percent'),
-                    'blind_error_percent': r.get('blind_error_percent'),
-                    'more_accurate_model': r.get('more_accurate_model')
-                }
-                for r in results['ticker_results']
-            ])
-        
-        # Combine results and save to CSV
-        dfs = []
-        if run_12m_evaluation and results_12m:
-            dfs.append(results_to_df(results_12m))
-        if run_1m_evaluation and results_1m:
-            dfs.append(results_to_df(results_1m))
+        # Save final results
+        if save_to_csv and results_1m:
+            # Convert results to DataFrame for easier analysis
+            def results_to_df(results):
+                return pd.DataFrame([
+                    {
+                        'ticker': r['ticker'],
+                        'cutoff_price': r['price_at_cutoff'],
+                        'current_price': r['current_price'],
+                        'percent_change': r.get('percent_change'),
+                        'timeframe': r.get('timeframe', '1m'),
+                        'model_target_low': r['model_price_target']['low'] if r.get('model_price_target') else None,
+                        'model_target_mid': r['model_price_target']['mid'] if r.get('model_price_target') else None,
+                        'model_target_high': r['model_price_target']['high'] if r.get('model_price_target') else None,
+                        'blind_target_low': r['blind_price_target']['low'] if r.get('blind_price_target') else None,
+                        'blind_target_mid': r['blind_price_target']['mid'] if r.get('blind_price_target') else None,
+                        'blind_target_high': r['blind_price_target']['high'] if r.get('blind_price_target') else None,
+                        'model_target_accurate': r.get('model_target_accurate'),
+                        'blind_target_accurate': r.get('blind_target_accurate'),
+                        'model_error': r.get('model_error'),
+                        'blind_error': r.get('blind_error'),
+                        'model_error_percent': r.get('model_error_percent'),
+                        'blind_error_percent': r.get('blind_error_percent'),
+                        'more_accurate_model': r.get('more_accurate_model')
+                    }
+                    for r in results['ticker_results']
+                ])
             
-        combined_results = pd.concat(dfs)
-        output_filename = f'price_target_evaluation_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-        combined_results.to_csv(output_filename, index=False)
-        print(f"\nResults exported to '{output_filename}'")
-        
+            results_df = results_to_df(results_1m)
+            output_filename = f'price_target_evaluation_1m_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            results_df.to_csv(output_filename, index=False)
+            print(f"\nResults exported to '{output_filename}'")
+    
     print("\nEvaluation complete!")
