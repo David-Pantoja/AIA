@@ -13,6 +13,11 @@
       "ticker": "AAPL",
       "shares": 100,
       "cost_basis": 150.75
+    },
+    {
+      "ticker": "MSFT",
+      "shares": 75,
+      "cost_basis": 280.5
     }
   ]
 }

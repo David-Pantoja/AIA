@@ -79,10 +79,15 @@ class StockDataFetcher:
         max_retries = 3
         retry_delay = 5  # Base delay in seconds
         
+        print(f"DEBUG: Starting get_analyst_ratings for {ticker} (cutoff_date: {cutoff_date})")
+        rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}  # Initialize with default values
+        
         for attempt in range(max_retries):
             try:
+                print(f"DEBUG: Attempt {attempt+1}/{max_retries} for {ticker}")
                 t = self._get_ticker(ticker)
                 if not t:
+                    print(f"DEBUG: No ticker object returned for {ticker}")
                     return {
                         "ticker": ticker,
                         "mean_target": None,
@@ -102,13 +107,18 @@ class StockDataFetcher:
                     }
 
                 # Get analyst recommendations
+                print(f"DEBUG: Getting recommendations for {ticker}")
                 recommendations = t.get_recommendations()
                 latest_rating = None
                 latest_target = None
+                
+                print(f"DEBUG: Recommendations type: {type(recommendations)}, empty: {recommendations is None or recommendations.empty if recommendations is not None else True}")
 
                 if recommendations is not None and not recommendations.empty:
+                    print(f"DEBUG: Processing recommendations for {ticker}, shape: {recommendations.shape}")
                     # Filter recommendations by cutoff date if provided
                     if cutoff_date:
+                        print(f"DEBUG: Filtering by cutoff date: {cutoff_date}")
                         # Convert cutoff_date to pandas Timestamp for comparison
                         # Make sure it's timezone naive if the recommendations index is naive
                         cutoff_ts = pd.Timestamp(cutoff_date)
@@ -150,32 +160,59 @@ class StockDataFetcher:
                                 recommendations = pd.DataFrame(filtered_rows)
                         else:
                             recommendations = pd.DataFrame()
+                        
+                        print(f"DEBUG: After filtering: recommendations empty: {recommendations.empty if recommendations is not None else True}")
                     
                     # Calculate rating counts from the recommendations DataFrame
-                    # Weight strongBuy and strongSell more heavily
-                    rating_counts = {
-                        "Buy": int(recommendations["buy"].sum() + recommendations["strongBuy"].sum() * 1.5),
-                        "Hold": int(recommendations["hold"].sum()),
-                        "Sell": int(recommendations["sell"].sum() + recommendations["strongSell"].sum() * 1.5)
-                    }
+                    # Check if DataFrame has required columns
+                    print(f"DEBUG: Recommendations columns: {recommendations.columns.tolist() if hasattr(recommendations, 'columns') else 'no columns attribute'}")
+                    if hasattr(recommendations, 'columns') and not recommendations.empty:
+                        required_columns = ["buy", "strongBuy", "hold", "sell", "strongSell"]
+                        missing_columns = [col for col in required_columns if col not in recommendations.columns]
+                        if missing_columns:
+                            print(f"DEBUG: Missing columns: {missing_columns}")
+                            # Initialize counts with zeros if columns are missing
+                            rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
+                        else:
+                            # Weight strongBuy and strongSell more heavily
+                            print(f"DEBUG: Computing rating counts")
+                            try:
+                                rating_counts = {
+                                    "Buy": int(recommendations["buy"].sum() + recommendations["strongBuy"].sum() * 1.5),
+                                    "Hold": int(recommendations["hold"].sum()),
+                                    "Sell": int(recommendations["sell"].sum() + recommendations["strongSell"].sum() * 1.5)
+                                }
+                                print(f"DEBUG: Rating counts: {rating_counts}")
+                            except Exception as e:
+                                print(f"DEBUG: Error calculating rating_counts: {str(e)}")
+                                # Ensure rating_counts is defined in case of error
+                                rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
+                    else:
+                        print(f"DEBUG: Using default rating counts (empty/invalid recommendations)")
+                        rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
                     
                     # Get the latest rating with strong recommendations weighted more heavily
-                    latest_row = recommendations.iloc[0]
-                    buy_score = latest_row["buy"] + latest_row["strongBuy"] * 1.5
-                    hold_score = latest_row["hold"]
-                    sell_score = latest_row["sell"] + latest_row["strongSell"] * 1.5
-                    
-                    if buy_score > hold_score and buy_score > sell_score:
-                        latest_rating = "Strong Buy" if latest_row["strongBuy"] > latest_row["buy"] else "Buy"
-                    elif hold_score > buy_score and hold_score > sell_score:
-                        latest_rating = "Hold"
-                    elif sell_score > buy_score and sell_score > hold_score:
-                        latest_rating = "Strong Sell" if latest_row["strongSell"] > latest_row["sell"] else "Sell"
-                    
-                    # Get the latest target from info
-                    latest_target = recommendations.iloc[0].get("priceTarget", None)
+                    if not recommendations.empty:
+                        try:
+                            latest_row = recommendations.iloc[0]
+                            buy_score = latest_row["buy"] + latest_row["strongBuy"] * 1.5
+                            hold_score = latest_row["hold"]
+                            sell_score = latest_row["sell"] + latest_row["strongSell"] * 1.5
+                            
+                            if buy_score > hold_score and buy_score > sell_score:
+                                latest_rating = "Strong Buy" if latest_row["strongBuy"] > latest_row["buy"] else "Buy"
+                            elif hold_score > buy_score and hold_score > sell_score:
+                                latest_rating = "Hold"
+                            elif sell_score > buy_score and sell_score > hold_score:
+                                latest_rating = "Strong Sell" if latest_row["strongSell"] > latest_row["sell"] else "Sell"
+                            
+                            # Get the latest target from info
+                            latest_target = recommendations.iloc[0].get("priceTarget", None)
+                        except Exception as e:
+                            print(f"DEBUG: Error processing latest rating: {str(e)}")
 
                 # Get price targets and other info
+                print(f"DEBUG: Getting price targets for {ticker}")
                 info = t.info
                 mean_target = None
                 median_target = None
@@ -186,14 +223,21 @@ class StockDataFetcher:
 
                 # If no price targets in info, try to calculate from recommendations
                 if (mean_target is None or median_target is None) and recommendations is not None and not recommendations.empty:
-                    price_targets = recommendations["Price Target"].dropna()
+                    price_targets = recommendations["Price Target"].dropna() if "Price Target" in recommendations.columns else pd.Series()
                     if not price_targets.empty:
                         if mean_target is None:
                             mean_target = price_targets.mean()
                         if median_target is None:
                             median_target = price_targets.median()
 
-                return {
+                print(f"DEBUG: Creating return dict for {ticker}")
+                # Verify rating_counts exists before using
+                if 'rating_counts' not in locals() or rating_counts is None:
+                    print(f"DEBUG: rating_counts not defined, using defaults")
+                    rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
+                    
+                # Create return dict with safe access to rating_counts
+                result = {
                     "ticker": ticker,
                     "mean_target": float(mean_target) if mean_target is not None else None,
                     "median_target": float(median_target) if median_target is not None else None,
@@ -203,16 +247,19 @@ class StockDataFetcher:
                     "latest_rating": latest_rating,
                     "latest_target": float(latest_target) if latest_target is not None else None,
                     "raw_recommendations": {
-                        "strongBuy": int(recommendations["strongBuy"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                        "buy": int(recommendations["buy"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                        "hold": int(recommendations["hold"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                        "sell": int(recommendations["sell"].sum()) if recommendations is not None and not recommendations.empty else 0,
-                        "strongSell": int(recommendations["strongSell"].sum()) if recommendations is not None and not recommendations.empty else 0
+                        "strongBuy": int(recommendations["strongBuy"].sum()) if recommendations is not None and not recommendations.empty and "strongBuy" in recommendations.columns else 0,
+                        "buy": int(recommendations["buy"].sum()) if recommendations is not None and not recommendations.empty and "buy" in recommendations.columns else 0,
+                        "hold": int(recommendations["hold"].sum()) if recommendations is not None and not recommendations.empty and "hold" in recommendations.columns else 0,
+                        "sell": int(recommendations["sell"].sum()) if recommendations is not None and not recommendations.empty and "sell" in recommendations.columns else 0,
+                        "strongSell": int(recommendations["strongSell"].sum()) if recommendations is not None and not recommendations.empty and "strongSell" in recommendations.columns else 0
                     }
                 }
+                print(f"DEBUG: Successfully returning data for {ticker}")
+                return result
                 
             except requests.exceptions.Timeout:
                 wait_time = retry_delay * (2 ** attempt)
+                print(f"DEBUG: Timeout for {ticker} on attempt {attempt+1}/{max_retries}")
                 logger.warning(f"Timeout fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}, waiting {wait_time} seconds...")
                 if attempt < max_retries - 1:
                     time.sleep(wait_time)
@@ -220,6 +267,7 @@ class StockDataFetcher:
                     
             except requests.exceptions.ConnectionError as e:
                 wait_time = retry_delay * (2 ** attempt)
+                print(f"DEBUG: Connection error for {ticker} on attempt {attempt+1}/{max_retries}: {str(e)}")
                 logger.warning(f"Connection error fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}: {e}, waiting {wait_time} seconds...")
                 if attempt < max_retries - 1:
                     time.sleep(wait_time)
@@ -227,17 +275,20 @@ class StockDataFetcher:
                     
             except TypeError as e:
                 # Handle yfinance API errors (like invalid parameters)
+                print(f"DEBUG: TypeError for {ticker}: {str(e)}")
                 logger.warning(f"yfinance API error for {ticker}: {e}")
                 break  # Don't retry for API errors
                     
             except Exception as e:
                 wait_time = retry_delay * (2 ** attempt)
+                print(f"DEBUG: General error for {ticker} on attempt {attempt+1}/{max_retries}: {str(e)}, {type(e).__name__}")
                 logger.warning(f"Error fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}: {e}, waiting {wait_time} seconds...")
                 if attempt < max_retries - 1:
                     time.sleep(wait_time)
                     continue
         
         # Return default values if all retries failed
+        print(f"DEBUG: All attempts failed for {ticker}, returning default values")
         return {
             "ticker": ticker,
             "mean_target": None,

@@ -511,7 +511,7 @@ Market Sentiment: Analyst Consensus - {market_sentiment.get("analyst_consensus",
 Recommendation: {recommendation.get("action", "Unknown").upper()} 
 Probabilities: Buy: {buy_prob:.2%}, Hold: {hold_prob:.2%}, Sell: {sell_prob:.2%}
 Confidence: {confidence:.2%}
-Risk Factors: {", ".join(insights_data.get("risk_factors", ["Unknown"]))[:200]}
+Risk Factors: {", ".join([str(factor) for factor in insights_data.get("risk_factors", ["Unknown"])])[:200]}
 """
                 portfolio_details.append(position_details)
             
