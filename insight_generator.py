@@ -70,7 +70,8 @@ class InsightGenerator:
                 
                 if not all_filings:
                     logger.warning(f"No recent filings found for {ticker}")
-                    return {}
+                    # Continue processing instead of returning empty dictionary
+                    # Only return empty if both SEC and yfinance data are unavailable
 
             # Get market data if enabled
             if fetch_yfinance:
@@ -92,6 +93,11 @@ class InsightGenerator:
                 
                 if price_data:
                     technical_indicators = fetcher.calculate_technical_indicators(price_data)
+
+            # Only return empty if both data sources failed or are disabled
+            if fetch_sec and not all_filings and fetch_yfinance and not price_data:
+                logger.warning(f"Both SEC and yfinance data sources failed to provide data for {ticker}")
+                return {}
 
             return {
                 "filings": all_filings,
@@ -275,11 +281,10 @@ Format your response as JSON with the following structure:
             # Check if data prep failed (only relevant for non-blind runs, blind runs expect empty data)
             if not financial_data and not is_blind_run:
                  logger.warning(f"Financial data preparation failed for {ticker} in non-blind mode.")
-                 # We might still proceed if only one source failed, but let's return empty for now
-                 # if the goal requires both sources. If partial data is acceptable, adjust this check.
-                 # For now, returning {} if preparation fails non-blindly.
-                 # Blind runs should proceed even with empty `financial_data`.
-                 return {}
+                 # We'll continue with the analysis using whatever data is available
+                 # Using an empty financial_data, but we won't force a blind run
+                 # This will let the model use its prior knowledge
+                 logger.info(f"Proceeding with limited data for {ticker}")
 
             # Create analysis prompt (passing is_blind flag)
             prompt = self._create_analysis_prompt(financial_data, ticker, is_blind=is_blind_run)
