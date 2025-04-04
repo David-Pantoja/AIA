@@ -8,7 +8,7 @@ const InsightCard = ({ insightData }) => {
 
   const { ticker, filing_date, generated_at, insights } = insightData;
 
-  // Helper to format optional dates
+  // format optional date
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     try {
@@ -18,7 +18,7 @@ const InsightCard = ({ insightData }) => {
     }
   };
 
-  // Helper to render list items safely
+  // render list items
   const renderList = (items) => {
     if (!Array.isArray(items) || items.length === 0) return <p>N/A</p>;
     return (
@@ -45,7 +45,6 @@ const InsightCard = ({ insightData }) => {
           {insights.summary && (
             <details open>
               {" "}
-              {/* Default open */}
               <summary>Summary</summary>
               <p>{insights.summary}</p>
             </details>
@@ -57,7 +56,6 @@ const InsightCard = ({ insightData }) => {
             </details>
           )}
 
-          {/* Render specific components for structured data */}
           {insights.recommendation && (
             <Recommendation data={insights.recommendation} />
           )}

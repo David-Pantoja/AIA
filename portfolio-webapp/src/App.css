@@ -1,4 +1,3 @@
-/* Reset default browser styles */
 body,
 h1,
 h2,
@@ -50,7 +49,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%; /* Ensure main takes full width */
+  width: 100%;
 }
 
 .controls {
@@ -62,8 +61,8 @@ body {
   display: flex;
   gap: 15px;
   align-items: center;
-  flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
-  justify-content: center; /* Center controls */
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .controls label {
@@ -82,13 +81,13 @@ body {
 
 .controls input[type="checkbox"] {
   margin-right: 5px;
-  vertical-align: middle; /* Align checkbox nicely with label */
+  vertical-align: middle;
 }
 
 .controls label[for="summary-only"] {
-  display: inline-flex; /* Keep checkbox and label together */
+  display: inline-flex;
   align-items: center;
-  margin-right: 15px; /* Add some space after checkbox */
+  margin-right: 15px;
 }
 
 .controls button {
@@ -115,7 +114,7 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   margin-top: 20px;
   width: 100%;
-  max-width: 800px; /* Limit width of results */
+  max-width: 800px;
   text-align: left;
 }
 
@@ -128,13 +127,13 @@ body {
   background-color: #f0f0f0;
   padding: 15px;
   border-radius: 4px;
-  overflow-x: auto; /* Add scroll for long lines */
-  white-space: pre-wrap; /* Wrap text */
-  word-wrap: break-word; /* Break long words */
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .error {
-  color: #d9534f; /* Bootstrap danger color */
+  color: #d9534f;
   background-color: #f2dede;
   border: 1px solid #ebccd1;
   padding: 15px;
@@ -157,7 +156,6 @@ body {
   }
 }
 
-/* Styles for the new form */
 .portfolio-form {
   background-color: #ffffff;
   padding: 30px;
@@ -165,7 +163,7 @@ body {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   margin-bottom: 30px;
   width: 100%;
-  max-width: 900px; /* Slightly wider form */
+  max-width: 900px;
   text-align: left;
 }
 
@@ -174,26 +172,26 @@ body {
   border-bottom: 2px solid #61dafb;
   padding-bottom: 10px;
   margin-bottom: 20px;
-  margin-top: 20px; /* Add space above headings */
+  margin-top: 20px;
   font-size: 1.5em;
 }
 
 .portfolio-form h2:first-of-type {
-  margin-top: 0; /* No top margin for the first heading */
+  margin-top: 0;
 }
 
 .form-section {
   margin-bottom: 25px;
   display: flex;
-  flex-wrap: wrap; /* Allow items to wrap */
-  gap: 20px; /* Space between items */
+  flex-wrap: wrap;
+  gap: 20px;
 }
 
 .form-group {
   display: flex;
-  flex-direction: column; /* Stack label and input */
-  flex: 1 1 200px; /* Allow shrinking, growing, base width */
-  min-width: 150px; /* Minimum width before wrapping */
+  flex-direction: column;
+  flex: 1 1 200px;
+  min-width: 150px;
 }
 
 .form-group label {
@@ -210,28 +208,27 @@ body {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 1em;
-  width: 100%; /* Take full width of the group */
+  width: 100%;
 }
 
 .form-group.checkbox-group label {
   display: flex;
   align-items: center;
   cursor: pointer;
-  font-weight: normal; /* Normal weight for checkbox labels */
+  font-weight: normal;
 }
 
 .form-group.checkbox-group input[type="checkbox"] {
   margin-right: 10px;
-  width: auto; /* Don't force checkbox width */
-  height: 18px; /* Slightly larger checkbox */
+  width: auto;
+  height: 18px;
   width: 18px;
   cursor: pointer;
 }
 
-/* Specific styling for positions list */
 .positions-list {
   display: flex;
-  flex-direction: column; /* Stack positions vertically */
+  flex-direction: column;
   gap: 15px;
 }
 
@@ -243,23 +240,23 @@ body {
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   background-color: #f9f9f9;
-  flex-wrap: wrap; /* Allow items within a position to wrap */
+  flex-wrap: wrap;
 }
 
 .position-item span {
   font-weight: bold;
   margin-right: 5px;
   color: #555;
-  min-width: 30px; /* Ensure number doesn't get squashed */
+  min-width: 30px;
 }
 
 .position-item input {
-  flex: 1; /* Allow inputs to grow */
-  min-width: 100px; /* Min width for inputs */
+  flex: 1;
+  min-width: 100px;
 }
 
 .position-item .remove-btn {
-  background-color: #dc3545; /* Red color */
+  background-color: #dc3545;
   color: white;
   border: none;
   padding: 8px 12px;
@@ -274,7 +271,7 @@ body {
 }
 
 .add-btn {
-  background-color: #28a745; /* Green color */
+  background-color: #28a745;
   color: white;
   border: none;
   padding: 10px 15px;
@@ -282,7 +279,7 @@ body {
   cursor: pointer;
   font-size: 1em;
   transition: background-color 0.2s ease;
-  align-self: flex-start; /* Align button to the start */
+  align-self: flex-start;
   margin-top: 10px;
 }
 
@@ -290,23 +287,22 @@ body {
   background-color: #218838;
 }
 
-/* Adjust controls section when inside the form */
 .portfolio-form .controls {
-  background-color: transparent; /* No background */
+  background-color: transparent;
   box-shadow: none;
   padding: 0;
   margin-top: 20px;
-  justify-content: center; /* If the only thing left is the button, you might center it */
+  justify-content: center;
 }
 
 .portfolio-form .controls label,
 .portfolio-form .controls input,
 .portfolio-form .controls button {
-  margin-bottom: 0; /* Remove bottom margin if needed */
+  margin-bottom: 0;
 }
 
 .portfolio-form .controls button[type="submit"] {
-  background-color: #007bff; /* Blue color for submit */
+  background-color: #007bff;
   color: white;
   padding: 12px 20px;
 }
@@ -315,49 +311,42 @@ body {
   background-color: #0056b3;
 }
 
-/* Styles for specific date input */
 .specific-date-input {
-  margin-top: 10px; /* Add some space above the date picker */
+  margin-top: 10px;
 }
 
-/* Styles for radio button group */
 .radio-group {
   display: flex;
-  gap: 15px; /* Space between radio buttons */
-  margin-top: 5px; /* Space below the main label */
+  gap: 15px;
+  margin-top: 5px;
   margin-bottom: 5px;
-  flex-wrap: wrap; /* Allow wrapping if needed */
+  flex-wrap: wrap;
 }
 
 .radio-group label {
   display: flex;
   align-items: center;
-  font-weight: normal; /* Normal weight for radio labels */
+  font-weight: normal;
   cursor: pointer;
-  margin-bottom: 0; /* Override default form-group label margin */
+  margin-bottom: 0;
 }
 
 .radio-group input[type="radio"] {
   margin-right: 5px;
 }
 
-/* Adjust layout for the date selection group */
 .date-selection-group {
-  /* You might want to adjust flex properties if needed */
-  /* Example: Ensure it takes adequate width */
-  flex-basis: 300px; /* Give it a bit more base width */
+  flex-basis: 300px;
 }
-
-/* --- Results Display Styling --- */
 
 .results-display {
   background-color: #ffffff;
-  padding: 20px 30px 30px 30px; /* More padding */
+  padding: 20px 30px 30px 30px;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   margin-top: 30px;
   width: 100%;
-  max-width: 900px; /* Match form width */
+  max-width: 900px;
   text-align: left;
 }
 
@@ -410,7 +399,6 @@ body {
   margin-bottom: 8px;
 }
 
-/* Portfolio Details Specific */
 .portfolio-details ul {
   list-style: none;
   margin-left: 0;
@@ -420,16 +408,15 @@ body {
   color: #555;
 }
 
-/* Conflicts Specific */
 .conflicts h3.warning {
-  color: #dc3545; /* Red warning color */
+  color: #dc3545;
 }
 .conflicts ul {
   list-style: none;
   margin-left: 0;
 }
 .conflicts li {
-  background-color: #f8d7da; /* Light red background */
+  background-color: #f8d7da;
   border: 1px solid #f5c6cb;
   border-left: 5px solid #dc3545;
   padding: 10px 15px;
@@ -438,7 +425,6 @@ body {
   font-size: 0.9em;
 }
 
-/* Recommendations Specific */
 .recommendations ul {
   list-style: none;
   margin-left: 0;
@@ -454,7 +440,7 @@ body {
   flex-wrap: wrap;
 }
 .recommendations strong {
-  flex-basis: 80px; /* Give ticker some space */
+  flex-basis: 80px;
   flex-shrink: 0;
 }
 .recommendations .action {
@@ -464,41 +450,37 @@ body {
   color: white;
   text-align: center;
   min-width: 50px;
-  margin-right: auto; /* Push reason to the right */
+  margin-right: auto;
 }
 .recommendations .reason {
-  margin-bottom: 0; /* Reset paragraph margin */
-  flex-basis: 100%; /* Allow reason to take full width if needed */
+  margin-bottom: 0;
+  flex-basis: 100%;
   font-style: italic;
   color: #666;
   font-size: 0.9em;
-  margin-top: 5px; /* Add space if it wraps */
+  margin-top: 5px;
 }
 
 .recommendations .action-buy,
 .recommendations li.action-buy .action {
-  background-color: #28a745; /* Green */
+  background-color: #28a745;
   border-left: 5px solid #28a745;
 }
 .recommendations .action-hold,
 .recommendations li.action-hold .action {
-  background-color: #ffc107; /* Yellow */
+  background-color: #ffc107;
   border-left: 5px solid #ffc107;
-  color: #333; /* Darker text for yellow */
+  color: #333;
 }
 .recommendations .action-sell,
 .recommendations li.action-sell .action {
-  background-color: #dc3545; /* Red */
+  background-color: #dc3545;
   border-left: 5px solid #dc3545;
 }
 
-/* --- Insights Styling --- */
 .insights-grid {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(350px, 1fr)
-  ); /* Responsive grid */
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 20px;
 }
 
@@ -537,7 +519,7 @@ body {
   padding: 10px;
   cursor: pointer;
   background-color: #f1f1f1;
-  border-radius: 4px 4px 0 0; /* Round top corners */
+  border-radius: 4px 4px 0 0;
 }
 
 .insight-details summary:hover {
@@ -562,12 +544,12 @@ body {
 .insight-details details > div {
   padding: 10px 15px;
   font-size: 0.95em;
-  border-top: 1px solid #e0e0e0; /* Separator inside details */
+  border-top: 1px solid #e0e0e0;
 }
 
 .insight-subsection ul {
   list-style: disc;
-  margin-left: 15px; /* Indent lists within subsections */
+  margin-left: 15px;
 }
 
 .insight-subsection p,
@@ -575,7 +557,6 @@ body {
   margin-bottom: 5px;
 }
 
-/* Recommendation Subsection */
 .recommendation-details .action {
   font-weight: bold;
 }
@@ -598,7 +579,6 @@ body {
   color: #555;
 }
 
-/* Raw JSON Toggle */
 .raw-json-details {
   margin-top: 20px;
 }

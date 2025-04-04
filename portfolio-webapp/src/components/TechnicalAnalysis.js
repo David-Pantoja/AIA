@@ -5,15 +5,14 @@ const TechnicalAnalysis = ({ data }) => {
 
   const { trend, momentum, support_resistance } = data;
 
-  // Function to safely render potentially missing values or objects
+  // safely render potentially missing values or objects
   const renderValue = (value, label) => {
     if (value === null || value === undefined || value === "") return null;
     if (typeof value === "object" && Object.keys(value).length === 0)
-      return null; // Ignore empty objects
+      return null;
 
     let displayValue;
     if (typeof value === "object") {
-      // Handle support_resistance specifically
       if (
         label === "Support/Resistance" &&
         value._support_levels_ &&
@@ -26,7 +25,6 @@ const TechnicalAnalysis = ({ data }) => {
           </>
         );
       } else {
-        // Generic object display (might need refinement)
         displayValue = JSON.stringify(value);
       }
     } else {
@@ -40,7 +38,6 @@ const TechnicalAnalysis = ({ data }) => {
     );
   };
 
-  // Check if there is any data to display
   const hasData =
     trend ||
     momentum ||

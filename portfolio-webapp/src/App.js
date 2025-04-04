@@ -93,25 +93,7 @@ function App() {
       });
 
       if (!response.ok) {
-        if (
-          response.status === 0 ||
-          (response.type === "opaque" && !response.url)
-        ) {
-          throw new Error(
-            "Request failed. This might be a CORS issue. Ensure the server (Flask API) is running and configured with CORS headers (e.g., using Flask-CORS)."
-          );
-        }
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (jsonError) {
-          throw new Error(
-            `HTTP error! status: ${response.status} ${response.statusText}. Failed to parse error response body.`
-          );
-        }
-        throw new Error(
-          errorData.error || `HTTP error! status: ${response.status}`
-        );
+        throw new Error("Analysis request failed");
       }
 
       const data = await response.json();
@@ -331,14 +313,6 @@ function App() {
             />
             <Insights insightsData={analysisResult.insights} />
             <PortfolioDetails portfolio={analysisResult.portfolio} />
-
-            {/* Optionally keep the raw JSON view for debugging */}
-            {/* 
-            <details className="raw-json-details">
-                <summary>View Raw JSON Response</summary>
-                <pre>{JSON.stringify(analysisResult, null, 2)}</pre>
-            </details> 
-            */}
           </div>
         )}
       </main>
