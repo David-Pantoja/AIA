@@ -2,3 +2,5 @@
 /aia
 __pycache__
 /__pycache__
+/sec_edgar_fetcher/__pycache__
+/stock_data_fetcher/__pycache__
