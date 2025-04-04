@@ -65,11 +65,12 @@ const InsightCard = ({ insightData }) => {
           {insights.market_sentiment && (
             <MarketSentiment data={insights.market_sentiment} />
           )}
-
           {insights.risk_factors && (
             <details>
               <summary>Risk Factors</summary>
-              {renderList(insights.risk_factors)}
+              {insights.risk_factors.map((factor, index) => (
+                <div key={index}>{factor}</div>
+              ))}
             </details>
           )}
         </div>
