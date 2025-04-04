@@ -10,35 +10,21 @@ from insight_generator import InsightGenerator
 from portfolio_conflict_analyzer import PortfolioConflictAnalyzer
 import argparse
 
-# Configure logging to only show info from this module and suppress others
-logging.basicConfig(level=logging.WARNING)  # Set base level to WARNING to suppress other modules
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)  # Set this module's logger to INFO
+logger.setLevel(logging.INFO)
 
-# Load environment variables
 load_dotenv()
 
 class PortfolioAnalyzer:
     def __init__(self, openai_api_key: Optional[str] = None, cutoff_date: Optional[datetime] = None, 
                  quarters: int = 4, max_search: int = 50, use_SEC: bool = True, use_yfinance: bool = True):
-        """Initialize the PortfolioAnalyzer with dependencies.
-        
-        Args:
-            openai_api_key: Optional API key for OpenAI. If not provided, will try to get from environment.
-            cutoff_date: Optional datetime to use as cutoff for historical data fetching.
-            quarters: Number of quarters of financial data to analyze.
-            max_search: Maximum number of search iterations.
-            use_SEC: Whether to use SEC data.
-            use_yfinance: Whether to use Yahoo Finance data.
-        """
-        # Set up OpenAI API key
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
             raise ValueError("OpenAI API key not found. Please provide it or set OPENAI_API_KEY environment variable.")
         
         openai.api_key = self.openai_api_key
         
-        # Store analysis parameters
         self.cutoff_date = cutoff_date or datetime.now()
         self.quarters = quarters
         self.max_search = max_search
@@ -46,46 +32,28 @@ class PortfolioAnalyzer:
         self.use_yfinance = use_yfinance
         self.use_latest_insights = False
         
-        # Initialize analyzers - use simpler initialization like in simple_insight_test.py
+        # initialize our generators
         self.insight_generator = InsightGenerator(
             openai_api_key=self.openai_api_key, 
             use_SEC=self.use_SEC
         )
         self.conflict_analyzer = PortfolioConflictAnalyzer()
 
-        logger.info(f"PortfolioAnalyzer initialized with parameters: cutoff_date={self.cutoff_date}, quarters={self.quarters}, max_search={self.max_search}, use_SEC={self.use_SEC}, use_yfinance={self.use_yfinance}, use_latest_insights={self.use_latest_insights}")
-
     def load_portfolio(self, file_path: str) -> Dict:
-        """Load portfolio data from a JSON file.
-        
-        Args:
-            file_path: Path to the JSON file containing portfolio data
-            
-        Returns:
-            Dict containing portfolio data
-        """
         try:
             with open(file_path, 'r') as f:
                 portfolio_data = json.load(f)
             
-            # Validate portfolio structure
             if not isinstance(portfolio_data, dict) or "positions" not in portfolio_data:
                 raise ValueError("Invalid portfolio JSON format. Expected {'positions': [...]}")
             
-            # Update class parameters from portfolio config if available
             if "config" in portfolio_data:
                 config = portfolio_data["config"]
                 self.quarters = config.get("quarters", self.quarters)
                 self.max_search = config.get("max_search", self.max_search)
                 self.use_SEC = config.get("use_SEC", self.use_SEC)
                 self.use_yfinance = config.get("use_yfinance", self.use_yfinance)
-                
-                # Check if date is set to "current" to use latest insights
                 self.use_latest_insights = config.get("date", "") == "current"
-                
-                logger.info(f"Using configuration from portfolio file: quarters={self.quarters}, "
-                           f"max_search={self.max_search}, use_SEC={self.use_SEC}, use_yfinance={self.use_yfinance}, "
-                           f"use_latest_insights={self.use_latest_insights}")
             
             return portfolio_data
         except Exception as e:
@@ -93,24 +61,13 @@ class PortfolioAnalyzer:
             raise
 
     def _clean_json_response(self, content: str) -> str:
-        """Clean and validate a JSON response from the model.
-        
-        Args:
-            content: Raw response content from the model
-            
-        Returns:
-            Cleaned JSON string
-        """
-        # Remove markdown code blocks if present
         if content.startswith("```") and content.endswith("```"):
             content = re.sub(r'```(?:json)?', '', content)
             content = content.strip()
         
-        # Remove any comments that might be present
         content = re.sub(r'//.*?\n', '\n', content)
         content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
         
-        # Find the first '{' and last '}' to extract only the JSON object
         start = content.find('{')
         end = content.rfind('}')
         
@@ -120,91 +77,43 @@ class PortfolioAnalyzer:
         return content.strip()
 
     def _get_insights_with_retry(self, ticker: str, max_retries: int = 3, use_latest: bool = False) -> Dict:
-        """Get insights for a ticker with retry logic.
-        
-        Args:
-            ticker: The stock ticker symbol
-            max_retries: Maximum number of retry attempts
-            use_latest: Whether to use get_latest_insights method
-            
-        Returns:
-            Dict containing the insights in a standardized format
-        """
         for attempt in range(max_retries):
             try:
-                # Print the ticker we're getting insights for
-                print(f"\n=== GENERATING INSIGHTS FOR {ticker} ===")
-                print(f"Method: {'get_latest_insights' if use_latest else 'generate_insight'}")
-                
-                # Choose method based on use_latest flag
                 if use_latest and hasattr(self.insight_generator, 'get_latest_insights'):
                     ticker_insights = self.insight_generator.get_latest_insights(ticker=ticker)
                 else:
-                    # Use simpler calling method from simple_insight_test.py
                     ticker_insights = self.insight_generator.generate_insight(ticker=ticker, cutoff_date=self.cutoff_date)
                 
-                # Standardize the insight format
                 standardized_insights = self._standardize_insight_format(ticker_insights, ticker)
                 
-                # Validate the standardized insight
                 if self._validate_insight(standardized_insights):
                     return standardized_insights
                 else:
-                    print(f"VALIDATION FAILED: Invalid insight structure for {ticker}")
-                    # Dump the returned insight for debugging
-                    print("Returned insight data:")
-                    print(json.dumps(ticker_insights, indent=2)[:500] + "...")
                     logger.warning(f"Attempt {attempt+1}: Invalid insight structure for {ticker}, retrying...")
             except Exception as e:
-                print(f"\n=== ERROR GENERATING INSIGHTS FOR {ticker} (Attempt {attempt+1}) ===")
-                print(f"Error type: {type(e).__name__}")
-                print(f"Error message: {str(e)}")
-                import traceback
-                print(f"Traceback:\n{traceback.format_exc()}")
-                print("=" * 50)
                 logger.error(f"Attempt {attempt+1}: Error generating insights for {ticker}: {str(e)}")
                 if attempt == max_retries - 1:
                     raise
         
-        # If all retries failed, return a default insight structure
         return self._create_default_insight(ticker)
 
     def _validate_insight(self, insight: Dict) -> bool:
-        """Validate that an insight contains all required fields with sensible values.
-        
-        Args:
-            insight: The insight data to validate
-            
-        Returns:
-            True if valid, False otherwise
-        """
-        print(f"\n=== VALIDATING INSIGHT STRUCTURE ===")
-        
-        # Check if the insight is empty
         if not insight:
-            print("ERROR: Empty insight object")
             return False
             
         ticker = insight.get("ticker", "UNKNOWN")
-        print(f"Validating insight for: {ticker}")
         
-        # Handle both flat and nested structures
         has_insights_field = "insights" in insight
         has_required_top_level = "summary" in insight and "financial_health" in insight and "recommendation" in insight
         
         if not has_insights_field and not has_required_top_level:
-            print(f"ERROR: Missing either 'insights' field or required top-level fields in insight data for {ticker}")
-            print(f"Keys found: {', '.join(insight.keys())}")
             return False
         
-        # Get insights data - either from the nested structure or from the flat structure
         if has_insights_field:
             insights_data = insight.get("insights", {})
         else:
-            # Use the flat structure directly
             insights_data = insight
         
-        # Check for required fields
         required_fields = [
             "summary", 
             "financial_health", 
@@ -217,13 +126,10 @@ class PortfolioAnalyzer:
         for field in required_fields:
             if field not in insights_data:
                 missing_fields.append(field)
-                print(f"ERROR: Missing required field '{field}' in insights data for {ticker}")
         
         if missing_fields:
-            print(f"Required fields missing: {', '.join(missing_fields)}")
             return False
         
-        # Validate recommendation has all required subfields
         recommendation = insights_data.get("recommendation", {})
         rec_required_fields = [
             "action",
@@ -237,13 +143,10 @@ class PortfolioAnalyzer:
         for field in rec_required_fields:
             if field not in recommendation:
                 missing_rec_fields.append(field)
-                print(f"ERROR: Missing required field '{field}' in recommendation data for {ticker}")
         
         if missing_rec_fields:
-            print(f"Required recommendation fields missing: {', '.join(missing_rec_fields)}")
             return False
         
-        # Check that probabilities are valid numbers between 0 and 1
         probabilities = [
             ("buy_probability", recommendation.get("buy_probability", -1)),
             ("hold_probability", recommendation.get("hold_probability", -1)),
@@ -255,24 +158,14 @@ class PortfolioAnalyzer:
         for name, prob in probabilities:
             if not isinstance(prob, (int, float)) or prob < 0 or prob > 1:
                 invalid_probs.append(f"{name} ({prob})")
-                print(f"ERROR: Invalid probability value for {name}: {prob}")
         
         if invalid_probs:
-            print(f"Invalid probability values: {', '.join(invalid_probs)}")
             return False
         
-        print(f"Insight validation successful for {ticker}")
         return True
 
     def _create_default_insight(self, ticker: str) -> Dict:
-        """Create a default insight with placeholder data when analysis fails.
-        
-        Args:
-            ticker: The stock ticker symbol
-            
-        Returns:
-            Dict containing default insights
-        """
+        # gotta have defaults when things go wrong
         return {
             "ticker": ticker,
             "generated_at": datetime.now().isoformat(),
@@ -304,30 +197,16 @@ class PortfolioAnalyzer:
         }
 
     def _standardize_insight_format(self, insight: Dict, ticker: str) -> Dict:
-        """Standardize insight format to ensure it has a consistent structure.
-        
-        Args:
-            insight: The insight data from the insight generator
-            ticker: The ticker symbol
-            
-        Returns:
-            Dict containing the insights in a standardized format
-        """
-        # If insight is empty or None, return default
         if not insight:
             return self._create_default_insight(ticker)
             
-        # Check if it already has an "insights" field with the expected subfields
         if "insights" in insight and isinstance(insight["insights"], dict):
-            # Check if ticker is present, if not add it
             if "ticker" not in insight:
                 insight["ticker"] = ticker
             return insight
             
-        # Check if it has the key fields at the top level (flat structure)
         required_fields = ["summary", "financial_health", "recommendation"]
         if any(field in insight for field in required_fields):
-            # Convert flat structure to nested structure
             return {
                 "ticker": ticker,
                 "generated_at": insight.get("generated_at", datetime.now().isoformat()),
@@ -357,62 +236,30 @@ class PortfolioAnalyzer:
                 }
             }
         
-        # If neither format is detected, return a default
         return self._create_default_insight(ticker)
 
     def _get_insights_for_positions(self, positions: List[Dict]) -> Dict[str, Dict]:
-        """Get insights for each position in the portfolio.
-        
-        Args:
-            positions: List of position dictionaries with ticker and shares
-            
-        Returns:
-            Dict mapping ticker symbols to their insights
-        """
         insights = {}
-        
-        # Debug the position data
-        print(f"\n=== STARTING INSIGHT GENERATION FOR {len(positions)} POSITIONS ===")
         
         for position in positions:
             ticker = position.get("ticker")
             if not ticker:
-                print(f"WARNING: Position without ticker found: {position}")
                 continue
                 
             logger.info(f"Generating insights for {ticker}")
-            print(f"\n--- Starting insight generation for {ticker} ---")
             
             try:
-                # Use get_insights_with_retry for better error handling
                 ticker_insights = self._get_insights_with_retry(ticker, use_latest=self.use_latest_insights)
-                
-                # Ensure the data is in the standardized format
                 standardized_insights = self._standardize_insight_format(ticker_insights, ticker)
                 insights[ticker] = standardized_insights
                 
-                # Debug what we got after standardization
-                insight_status = "Default" if standardized_insights.get("insights", {}).get("summary", "").startswith("Analysis for") else "Generated"
-                print(f"Successfully generated insights for {ticker} ({insight_status})")
-                
             except Exception as e:
                 logger.error(f"Error generating insights for {ticker}: {str(e)}")
-                print(f"ERROR generating insights for {ticker}: {str(e)}")
                 insights[ticker] = self._create_default_insight(ticker)
-                print(f"Using default insights for {ticker}")
         
-        print(f"\n=== COMPLETED INSIGHT GENERATION FOR {len(positions)} POSITIONS ===")
         return insights
 
     def _analyze_conflicts(self, positions: List[Dict]) -> Dict:
-        """Analyze conflicts in the portfolio.
-        
-        Args:
-            positions: List of position dictionaries with ticker and shares
-            
-        Returns:
-            Dict containing conflict analysis results
-        """
         try:
             tickers = [position.get("ticker") for position in positions if position.get("ticker")]
             logger.info(f"Analyzing conflicts for {', '.join(tickers)}")
@@ -427,29 +274,9 @@ class PortfolioAnalyzer:
             }
 
     def _generate_portfolio_summary(self, positions: List[Dict], insights: Dict[str, Dict], conflicts: Dict) -> Dict:
-        """Generate a summary of the portfolio using OpenAI.
-        
-        Args:
-            positions: List of position dictionaries with ticker and shares
-            insights: Dict mapping ticker symbols to their insights
-            conflicts: Dict containing conflict analysis results
-            
-        Returns:
-            Dict containing the portfolio summary and recommendations
-        """
         try:
-            # Create a detailed prompt for the model
             portfolio_details = []
-            
-            # Also extract recommendations for direct use
             extracted_recommendations = []
-            
-            # First, let's see what insights data we actually have
-            print("\n=== AVAILABLE INSIGHTS SUMMARY ===")
-            for ticker, insight_data in insights.items():
-                insight_status = "DEFAULT" if insight_data.get("insights", {}).get("summary", "").startswith("Analysis for") else "GENERATED"
-                print(f"{ticker}: {insight_status}")
-            print("=" * 50)
             
             for position in positions:
                 ticker = position.get("ticker")
@@ -466,14 +293,12 @@ class PortfolioAnalyzer:
                 technical_analysis = insights_data.get("technical_analysis", {})
                 market_sentiment = insights_data.get("market_sentiment", {})
                 
-                # Extract recommendation for direct use
                 action = recommendation.get("action", "hold").lower()
                 buy_prob = recommendation.get("buy_probability", 0)
                 hold_prob = recommendation.get("hold_probability", 0)
                 sell_prob = recommendation.get("sell_probability", 0)
                 confidence = recommendation.get("confidence_level", 0)
                 
-                # Create reason based on probabilities and other data
                 reason = f"Based on analysis with {confidence:.0%} confidence" 
                 
                 if buy_prob > 0.6:
@@ -489,7 +314,6 @@ class PortfolioAnalyzer:
                 if hold_prob > 0.6:
                     reason += f", strong hold signal ({hold_prob:.0%})"
                 
-                # Add financial health if available
                 if financial_health and financial_health != "No financial health data available":
                     reason += ". " + financial_health[:100] + "..."
                 
@@ -499,7 +323,6 @@ class PortfolioAnalyzer:
                     "reason": reason
                 })
                 
-                # Include more comprehensive data for each position
                 position_details = f"""
 Ticker: {ticker}
 Shares: {shares}
@@ -515,7 +338,6 @@ Risk Factors: {", ".join([str(factor) for factor in insights_data.get("risk_fact
 """
                 portfolio_details.append(position_details)
             
-            # Add conflict information
             conflict_details = "No conflicts detected in the portfolio."
             if conflicts.get("has_conflicts", False):
                 conflict_list = []
@@ -562,13 +384,9 @@ Format your response as JSON with the following structure:
   "diversification_suggestions": "Suggestions to improve diversification"
 }}"""
 
-            # Try multiple times with different models if needed
             response = None
             try:
-                # First try with GPT-4
-                print("=" * 27)
-                print(prompt)
-                print("=" * 27)
+                # let's ask the magic 8 ball
                 response = openai.chat.completions.create(
                     model="gpt-4o-mini-2024-07-18",
                     messages=[
@@ -580,7 +398,6 @@ Format your response as JSON with the following structure:
                 )
             except Exception as e:
                 logger.warning(f"Error with GPT-4 model, falling back to GPT-3.5-turbo: {str(e)}")
-                # Fall back to GPT-3.5-turbo if GPT-4 fails
                 response = openai.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
@@ -591,21 +408,8 @@ Format your response as JSON with the following structure:
                     max_tokens=1500
                 )
             
-            # Parse and return the result
             content = response.choices[0].message.content.strip()
-            
-            # Debug the raw response
-            print("\n=== OpenAI RESPONSE ===")
-            print(content[:1000] + "..." if len(content) > 1000 else content)
-            print("=" * 50)
-            
-            # Clean JSON response
             cleaned_content = self._clean_json_response(content)
-            
-            # Debug the cleaned response
-            print("\n=== CLEANED RESPONSE ===")
-            print(cleaned_content[:1000] + "..." if len(cleaned_content) > 1000 else cleaned_content)
-            print("=" * 50)
             
             try:
                 result = json.loads(cleaned_content)
@@ -615,7 +419,6 @@ Format your response as JSON with the following structure:
                 logger.error(f"Raw content: {content}")
                 logger.error(f"Cleaned content: {cleaned_content}")
                 
-                # Try to extract JSON using regex as a last resort
                 import re
                 json_pattern = r'({[\s\S]*})'
                 match = re.search(json_pattern, content)
@@ -626,7 +429,6 @@ Format your response as JSON with the following structure:
                     except:
                         pass
                 
-                # If all parsing fails, return a summary using our extracted recommendations
                 return {
                     "summary": "Portfolio consists of two technology companies (Apple and Microsoft) with different risk and growth profiles.",
                     "rebalancing_recommendations": extracted_recommendations,
@@ -637,7 +439,6 @@ Format your response as JSON with the following structure:
         except Exception as e:
             logger.error(f"Error generating portfolio summary: {str(e)}")
             
-            # Even on error, return the extracted recommendations if available
             if extracted_recommendations:
                 return {
                     "summary": "Portfolio analysis encountered technical difficulties, but individual security recommendations are available.",
@@ -655,18 +456,9 @@ Format your response as JSON with the following structure:
             }
 
     def analyze_portfolio(self, portfolio_file: str) -> Dict:
-        """Analyze a portfolio from a JSON file.
-        
-        Args:
-            portfolio_file: Path to JSON file containing portfolio data
-            
-        Returns:
-            Dict containing the comprehensive portfolio analysis
-        """
         try:
             logger.info(f"Analyzing portfolio from {portfolio_file}")
             
-            # Load portfolio data
             portfolio_data = self.load_portfolio(portfolio_file)
             positions = portfolio_data.get("positions", [])
             
@@ -676,16 +468,10 @@ Format your response as JSON with the following structure:
                     "timestamp": datetime.now().isoformat()
                 }
             
-            # Get insights for all positions
             insights = self._get_insights_for_positions(positions)
-            
-            # Analyze conflicts
             conflicts = self._analyze_conflicts(positions)
-            
-            # Generate portfolio summary
             summary = self._generate_portfolio_summary(positions, insights, conflicts)
             
-            # Combine all results
             return {
                 "portfolio": {
                     "positions": positions,
@@ -715,20 +501,6 @@ Format your response as JSON with the following structure:
 
 def analyze_portfolio(portfolio_file: str, cutoff_date: Optional[datetime] = None, 
                      quarters: int = 4, max_search: int = 50, use_SEC: bool = True, use_yfinance: bool = True) -> Dict:
-    """Convenience function to analyze a portfolio.
-    
-    Args:
-        portfolio_file: Path to the portfolio JSON file
-        cutoff_date: Optional datetime to use as cutoff for data fetching
-        quarters: Number of quarters of data to analyze
-        max_search: Maximum number of items to search in SEC filings
-        use_SEC: Whether to use SEC filings data
-        use_yfinance: Whether to use Yahoo Finance data
-        
-    Returns:
-        Dict containing the analysis results
-    """
-    # Log the main query parameters being used
     logger.info("=" * 80)
     logger.info(f"PORTFOLIO ANALYSIS QUERY:")
     logger.info(f"Portfolio file: {portfolio_file}")
@@ -737,7 +509,6 @@ def analyze_portfolio(portfolio_file: str, cutoff_date: Optional[datetime] = Non
     logger.info("=" * 80)
     
     try:
-        # Initialize the analyzer
         analyzer = PortfolioAnalyzer(
             cutoff_date=cutoff_date,
             quarters=quarters,
@@ -746,17 +517,9 @@ def analyze_portfolio(portfolio_file: str, cutoff_date: Optional[datetime] = Non
             use_yfinance=use_yfinance
         )
         
-        # Proceed with portfolio analysis
         return analyzer.analyze_portfolio(portfolio_file)
         
     except Exception as e:
-        print(f"\n=== CRITICAL ERROR DURING PORTFOLIO ANALYSIS ===")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
-        import traceback
-        print(f"Traceback:\n{traceback.format_exc()}")
-        print("=" * 50)
-        
         return {
             "error": f"Portfolio analysis failed: {str(e)}",
             "error_type": type(e).__name__,
@@ -776,12 +539,9 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Set defaults if not specified
     if args.quarters is None and args.max_search is None and args.use_sec is None and args.use_yfinance is None:
-        # If no command line args provided, use defaults from the code
         result = analyze_portfolio(args.portfolio_file)
     else:
-        # Use any provided command line args, fallback to defaults for any not specified
         result = analyze_portfolio(
             args.portfolio_file,
             quarters=args.quarters if args.quarters is not None else 4,
@@ -790,5 +550,4 @@ if __name__ == "__main__":
             use_yfinance=args.use_yfinance if args.use_yfinance is not None else True
         )
     
-    # Pretty print the result
     print(json.dumps(result, indent=2)) 
