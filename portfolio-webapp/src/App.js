@@ -12,9 +12,8 @@ function App() {
   const [portfolioName, setPortfolioName] = useState("My Portfolio");
   const [portfolioOwner, setPortfolioOwner] = useState("User");
   const [portfolioDateType, setPortfolioDateType] = useState("current"); // 'current' or 'specific'
-  const [specificPortfolioDate, setSpecificPortfolioDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [specificPortfolioDate, setSpecificPortfolioDate] =
+    useState("2024-08-01");
 
   // State for config
   const [configQuarters, setConfigQuarters] = useState(4);
@@ -25,7 +24,7 @@ function App() {
   // State for positions (array of objects)
   const [positions, setPositions] = useState([
     { id: 1, ticker: "AAPL", shares: 100, cost_basis: 150.75 },
-    { id: 2, ticker: "MSFT", shares: 50, cost_basis: 280.5 },
+    { id: 2, ticker: "CRWD", shares: 50, cost_basis: 225.4 },
   ]);
   const [nextPositionId, setNextPositionId] = useState(3);
 
@@ -84,7 +83,7 @@ function App() {
 
     try {
       const apiUrl = "http://localhost:8000/api/analyze";
-
+      console.log(JSON.stringify(portfolioData, null, 2));
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
@@ -116,6 +115,7 @@ function App() {
       }
 
       const data = await response.json();
+      console.log(JSON.stringify(data, null, 2));
       setAnalysisResult(data);
     } catch (err) {
       setError(err.message);
@@ -194,6 +194,13 @@ function App() {
                   className="specific-date-input"
                 />
               )}
+              {portfolioDateType === "specific" && (
+                <div className="date-note">
+                  It is recommended you use a date after 07/18/2024 as the
+                  reasoning model may have price knowledge baked in for days
+                  before that.
+                </div>
+              )}
             </div>
           </div>
 
@@ -209,6 +216,7 @@ function App() {
                 min="1"
               />
             </div>
+            {/*
             <div className="form-group">
               <label htmlFor="config-max-search">Max Search:</label>
               <input
@@ -219,6 +227,7 @@ function App() {
                 min="1"
               />
             </div>
+            */}
             <div className="form-group checkbox-group">
               <label htmlFor="config-use-sec">
                 <input

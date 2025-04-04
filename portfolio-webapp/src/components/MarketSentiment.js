@@ -47,7 +47,9 @@ const MarketSentiment = ({ data }) => {
   return (
     <details className="insight-subsection market-sentiment-details">
       <summary>Market Sentiment</summary>
-      {keys.map((key) => renderValue(data[key], key))}
+      {keys.map((key) => (
+        <React.Fragment key={key}>{renderValue(data[key], key)}</React.Fragment>
+      ))}
     </details>
   );
 };

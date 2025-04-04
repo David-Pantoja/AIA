@@ -1,4 +1,4 @@
-
+(Gotten by cat-ting output of insight_eval.py)
 ====== EVALUATING 1-MONTH PRICE TARGETS ======
 
 Price Target Evaluation (1-Month)

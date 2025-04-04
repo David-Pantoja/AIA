@@ -141,7 +141,7 @@ class PortfolioAnalyzer:
                     ticker_insights = self.insight_generator.get_latest_insights(ticker=ticker)
                 else:
                     # Use simpler calling method from simple_insight_test.py
-                    ticker_insights = self.insight_generator.generate_insight(ticker=ticker)
+                    ticker_insights = self.insight_generator.generate_insight(ticker=ticker, cutoff_date=self.cutoff_date)
                 
                 # Standardize the insight format
                 standardized_insights = self._standardize_insight_format(ticker_insights, ticker)
@@ -735,11 +735,6 @@ def analyze_portfolio(portfolio_file: str, cutoff_date: Optional[datetime] = Non
     logger.info(f"Analysis parameters: cutoff_date={cutoff_date}, quarters={quarters}, max_search={max_search}")
     logger.info(f"Data sources: use_SEC={use_SEC}, use_yfinance={use_yfinance}")
     logger.info("=" * 80)
-    
-    # Provide a warning if using SEC data, which might be failing
-    if use_SEC:
-        print("\n⚠️ WARNING: SEC data fetching is enabled, which may be causing issues.")
-        print("If you continue to experience failures, try setting use_SEC=False in your config.\n")
     
     try:
         # Initialize the analyzer

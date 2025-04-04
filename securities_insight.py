@@ -601,7 +601,7 @@ def main():
     if results:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         cutoff_str = CUTOFF_DATE.replace('-', '')
-        file_name = f"benchmark_results_{cutoff_str}_{timestamp}.csv"
+        file_name = f"securities_insight_output_{cutoff_str}_{timestamp}.csv"
         save_results(results, file_name)
     
     print(f"\n==== BENCHMARKING COMPLETED ====")

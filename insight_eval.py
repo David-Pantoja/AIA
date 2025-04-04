@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 import yfinance as yf
 
-CSVy = "benchmark_results.csv"
+CSVy = "securities_insight_output.csv"
 
 def calculate_score(probabilities):
     """
@@ -936,7 +936,7 @@ if __name__ == "__main__":
                 ])
             
             results_df = results_to_df(results_1m)
-            output_filename = f'price_target_evaluation_1m_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            output_filename = f'insight_eval_dated_output_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
             results_df.to_csv(output_filename, index=False)
             print(f"\nResults exported to '{output_filename}'")
     

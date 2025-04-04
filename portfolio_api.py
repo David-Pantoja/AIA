@@ -53,11 +53,6 @@ def analyze():
             ]
         }
         
-    Optional Query Parameters:
-        cutoff_date (str): Cutoff date for historical data in YYYY-MM-DD format.
-                          Default is current date.
-        summary_only (bool): If set to "true", returns only summary information.
-        
     Returns:
         JSON object containing analysis results.
     """
@@ -76,20 +71,14 @@ def analyze():
         use_SEC = portfolio_data.get("config", {}).get("use_SEC", True)
         quarters = portfolio_data.get("config", {}).get("quarters", 4)
         max_search = portfolio_data.get("config", {}).get("max_search", 200)
-        
-        # Get optional query parameters
-        cutoff_date_str = request.args.get('cutoff_date')
-        summary_only = request.args.get('summary_only', 'false').lower() == 'true'
-        
-        # Parse cutoff date
+        cutoff_date_str = portfolio_data.get("date", "current")
+
+        #convert cutoff_date to datetime object
         cutoff_date = None
-        if cutoff_date_str:
-            try:
-                cutoff_date = datetime.strptime(cutoff_date_str, "%Y-%m-%d")
-            except ValueError:
-                return jsonify({"error": f"Invalid date format: {cutoff_date_str}. Expected YYYY-MM-DD."}), 400
-        else:
+        if cutoff_date_str == "current":
             cutoff_date = datetime.now()
+        else:
+            cutoff_date = datetime.strptime(cutoff_date_str, "%Y-%m-%d")
         
         logger.info(f"Analyzing portfolio with {len(portfolio_data['positions'])} positions")
         
@@ -111,16 +100,6 @@ def analyze():
         finally:
             # Clean up the temporary file
             os.unlink(temp_file_path)
-        
-        # Filter results if summary only
-        if summary_only:
-            filtered_results = {
-                "summary": results.get("summary", "No summary available."),
-                "rebalancing_recommendations": results.get("rebalancing_recommendations", []),
-                "risk_assessment": results.get("risk_assessment", "No risk assessment available."),
-                "diversification_suggestions": results.get("diversification_suggestions", "No diversification suggestions available.")
-            }
-            return jsonify(filtered_results)
         
         return jsonify(results)
         
@@ -145,10 +124,6 @@ def get_documentation():
                 "path": "/api/analyze",
                 "method": "POST",
                 "description": "Analyze an investment portfolio",
-                "parameters": {
-                    "cutoff_date": "Optional query parameter for historical data cutoff (YYYY-MM-DD)",
-                    "summary_only": "Optional query parameter to return only summary information (true/false)"
-                },
                 "request_body": "JSON portfolio data",
                 "responses": {
                     "200": "Analysis results",
