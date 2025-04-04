@@ -1,7 +1,7 @@
 {
-  "name": "Sample Investment Portfolio",
+  "name": "Sample Investment Portfolio C",
   "owner": "John Doe",
-  "date": "2024-11-01",
+  "date": "current",
   "config": {
     "quarters": 4,
     "max_search": 200,

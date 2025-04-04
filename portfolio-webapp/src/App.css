@@ -1,0 +1,621 @@
+/* Reset default browser styles */
+body,
+h1,
+h2,
+p,
+button,
+select,
+input,
+label {
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #f4f7f6;
+}
+
+.App {
+  text-align: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+  margin-bottom: 30px;
+}
+
+.App-header h1 {
+  font-size: 2em;
+}
+
+.App-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%; /* Ensure main takes full width */
+}
+
+.controls {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+  justify-content: center; /* Center controls */
+}
+
+.controls label {
+  font-weight: bold;
+  margin-right: 5px;
+}
+
+.controls select,
+.controls input[type="date"],
+.controls button {
+  padding: 10px 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+}
+
+.controls input[type="checkbox"] {
+  margin-right: 5px;
+  vertical-align: middle; /* Align checkbox nicely with label */
+}
+
+.controls label[for="summary-only"] {
+  display: inline-flex; /* Keep checkbox and label together */
+  align-items: center;
+  margin-right: 15px; /* Add some space after checkbox */
+}
+
+.controls button {
+  background-color: #61dafb;
+  color: #282c34;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.controls button:hover {
+  background-color: #21a1f1;
+}
+
+.controls button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.results {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+  width: 100%;
+  max-width: 800px; /* Limit width of results */
+  text-align: left;
+}
+
+.results h2 {
+  margin-bottom: 15px;
+  color: #282c34;
+}
+
+.results pre {
+  background-color: #f0f0f0;
+  padding: 15px;
+  border-radius: 4px;
+  overflow-x: auto; /* Add scroll for long lines */
+  white-space: pre-wrap; /* Wrap text */
+  word-wrap: break-word; /* Break long words */
+}
+
+.error {
+  color: #d9534f; /* Bootstrap danger color */
+  background-color: #f2dede;
+  border: 1px solid #ebccd1;
+  padding: 15px;
+  border-radius: 4px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 800px;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Styles for the new form */
+.portfolio-form {
+  background-color: #ffffff;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+  width: 100%;
+  max-width: 900px; /* Slightly wider form */
+  text-align: left;
+}
+
+.portfolio-form h2 {
+  color: #282c34;
+  border-bottom: 2px solid #61dafb;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  margin-top: 20px; /* Add space above headings */
+  font-size: 1.5em;
+}
+
+.portfolio-form h2:first-of-type {
+  margin-top: 0; /* No top margin for the first heading */
+}
+
+.form-section {
+  margin-bottom: 25px;
+  display: flex;
+  flex-wrap: wrap; /* Allow items to wrap */
+  gap: 20px; /* Space between items */
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column; /* Stack label and input */
+  flex: 1 1 200px; /* Allow shrinking, growing, base width */
+  min-width: 150px; /* Minimum width before wrapping */
+}
+
+.form-group label {
+  margin-bottom: 8px;
+  font-weight: bold;
+  font-size: 0.95em;
+  color: #555;
+}
+
+.form-group input[type="text"],
+.form-group input[type="date"],
+.form-group input[type="number"] {
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+  width: 100%; /* Take full width of the group */
+}
+
+.form-group.checkbox-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: normal; /* Normal weight for checkbox labels */
+}
+
+.form-group.checkbox-group input[type="checkbox"] {
+  margin-right: 10px;
+  width: auto; /* Don't force checkbox width */
+  height: 18px; /* Slightly larger checkbox */
+  width: 18px;
+  cursor: pointer;
+}
+
+/* Specific styling for positions list */
+.positions-list {
+  display: flex;
+  flex-direction: column; /* Stack positions vertically */
+  gap: 15px;
+}
+
+.position-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background-color: #f9f9f9;
+  flex-wrap: wrap; /* Allow items within a position to wrap */
+}
+
+.position-item span {
+  font-weight: bold;
+  margin-right: 5px;
+  color: #555;
+  min-width: 30px; /* Ensure number doesn't get squashed */
+}
+
+.position-item input {
+  flex: 1; /* Allow inputs to grow */
+  min-width: 100px; /* Min width for inputs */
+}
+
+.position-item .remove-btn {
+  background-color: #dc3545; /* Red color */
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
+}
+
+.position-item .remove-btn:hover {
+  background-color: #c82333;
+}
+
+.add-btn {
+  background-color: #28a745; /* Green color */
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s ease;
+  align-self: flex-start; /* Align button to the start */
+  margin-top: 10px;
+}
+
+.add-btn:hover {
+  background-color: #218838;
+}
+
+/* Adjust controls section when inside the form */
+.portfolio-form .controls {
+  background-color: transparent; /* No background */
+  box-shadow: none;
+  padding: 0;
+  margin-top: 20px;
+  justify-content: center; /* If the only thing left is the button, you might center it */
+}
+
+.portfolio-form .controls label,
+.portfolio-form .controls input,
+.portfolio-form .controls button {
+  margin-bottom: 0; /* Remove bottom margin if needed */
+}
+
+.portfolio-form .controls button[type="submit"] {
+  background-color: #007bff; /* Blue color for submit */
+  color: white;
+  padding: 12px 20px;
+}
+
+.portfolio-form .controls button[type="submit"]:hover {
+  background-color: #0056b3;
+}
+
+/* Styles for specific date input */
+.specific-date-input {
+  margin-top: 10px; /* Add some space above the date picker */
+}
+
+/* Styles for radio button group */
+.radio-group {
+  display: flex;
+  gap: 15px; /* Space between radio buttons */
+  margin-top: 5px; /* Space below the main label */
+  margin-bottom: 5px;
+  flex-wrap: wrap; /* Allow wrapping if needed */
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  font-weight: normal; /* Normal weight for radio labels */
+  cursor: pointer;
+  margin-bottom: 0; /* Override default form-group label margin */
+}
+
+.radio-group input[type="radio"] {
+  margin-right: 5px;
+}
+
+/* Adjust layout for the date selection group */
+.date-selection-group {
+  /* You might want to adjust flex properties if needed */
+  /* Example: Ensure it takes adequate width */
+  flex-basis: 300px; /* Give it a bit more base width */
+}
+
+/* --- Results Display Styling --- */
+
+.results-display {
+  background-color: #ffffff;
+  padding: 20px 30px 30px 30px; /* More padding */
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 30px;
+  width: 100%;
+  max-width: 900px; /* Match form width */
+  text-align: left;
+}
+
+.results-display h2 {
+  color: #282c34;
+  border-bottom: 2px solid #61dafb;
+  padding-bottom: 10px;
+  margin-bottom: 25px;
+  font-size: 1.6em;
+}
+
+.result-section {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px dashed #e0e0e0;
+}
+
+.result-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.result-section h3 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 1.3em;
+}
+
+.result-section h4 {
+  color: #555;
+  margin-top: 15px;
+  margin-bottom: 8px;
+  font-size: 1.1em;
+}
+
+.result-section p {
+  line-height: 1.6;
+  color: #444;
+  margin-bottom: 10px;
+}
+
+.result-section ul {
+  list-style: disc;
+  margin-left: 25px;
+  padding-left: 0;
+}
+
+.result-section li {
+  margin-bottom: 8px;
+}
+
+/* Portfolio Details Specific */
+.portfolio-details ul {
+  list-style: none;
+  margin-left: 0;
+}
+.portfolio-details li {
+  font-size: 0.95em;
+  color: #555;
+}
+
+/* Conflicts Specific */
+.conflicts h3.warning {
+  color: #dc3545; /* Red warning color */
+}
+.conflicts ul {
+  list-style: none;
+  margin-left: 0;
+}
+.conflicts li {
+  background-color: #f8d7da; /* Light red background */
+  border: 1px solid #f5c6cb;
+  border-left: 5px solid #dc3545;
+  padding: 10px 15px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+/* Recommendations Specific */
+.recommendations ul {
+  list-style: none;
+  margin-left: 0;
+}
+.recommendations li {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.recommendations strong {
+  flex-basis: 80px; /* Give ticker some space */
+  flex-shrink: 0;
+}
+.recommendations .action {
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: white;
+  text-align: center;
+  min-width: 50px;
+  margin-right: auto; /* Push reason to the right */
+}
+.recommendations .reason {
+  margin-bottom: 0; /* Reset paragraph margin */
+  flex-basis: 100%; /* Allow reason to take full width if needed */
+  font-style: italic;
+  color: #666;
+  font-size: 0.9em;
+  margin-top: 5px; /* Add space if it wraps */
+}
+
+.recommendations .action-buy,
+.recommendations li.action-buy .action {
+  background-color: #28a745; /* Green */
+  border-left: 5px solid #28a745;
+}
+.recommendations .action-hold,
+.recommendations li.action-hold .action {
+  background-color: #ffc107; /* Yellow */
+  border-left: 5px solid #ffc107;
+  color: #333; /* Darker text for yellow */
+}
+.recommendations .action-sell,
+.recommendations li.action-sell .action {
+  background-color: #dc3545; /* Red */
+  border-left: 5px solid #dc3545;
+}
+
+/* --- Insights Styling --- */
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(350px, 1fr)
+  ); /* Responsive grid */
+  gap: 20px;
+}
+
+.insight-card {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 20px;
+  background-color: #f9f9f9;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.insight-card h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.2em;
+  color: #0056b3;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.insight-meta {
+  font-size: 0.8em;
+  color: #777;
+  margin-bottom: 15px;
+}
+
+.insight-details details {
+  margin-bottom: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #fff;
+}
+
+.insight-details summary {
+  font-weight: bold;
+  padding: 10px;
+  cursor: pointer;
+  background-color: #f1f1f1;
+  border-radius: 4px 4px 0 0; /* Round top corners */
+}
+
+.insight-details summary:hover {
+  background-color: #e9e9e9;
+}
+
+.insight-details details[open] summary {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.insight-details > div > p,
+.insight-details > div > ul,
+.insight-subsection > p,
+.insight-subsection > div,
+.insight-subsection > ul {
+  padding: 10px 15px;
+  font-size: 0.95em;
+}
+
+.insight-details details > p,
+.insight-details details > ul,
+.insight-details details > div {
+  padding: 10px 15px;
+  font-size: 0.95em;
+  border-top: 1px solid #e0e0e0; /* Separator inside details */
+}
+
+.insight-subsection ul {
+  list-style: disc;
+  margin-left: 15px; /* Indent lists within subsections */
+}
+
+.insight-subsection p,
+.insight-subsection div {
+  margin-bottom: 5px;
+}
+
+/* Recommendation Subsection */
+.recommendation-details .action {
+  font-weight: bold;
+}
+.recommendation-details .probabilities {
+  display: flex;
+  gap: 15px;
+  font-size: 0.9em;
+  color: #555;
+  margin-top: 5px;
+}
+.recommendation-details .price-target {
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+.recommendation-details .price-target strong {
+  margin-right: 5px;
+}
+.recommendation-details .price-target span {
+  margin-right: 10px;
+  color: #555;
+}
+
+/* Raw JSON Toggle */
+.raw-json-details {
+  margin-top: 20px;
+}
+
+.raw-json-details summary {
+  font-weight: bold;
+  cursor: pointer;
+  color: #0056b3;
+  margin-bottom: 10px;
+}
+
+.raw-json-details pre {
+  background-color: #f0f0f0;
+  padding: 15px;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  border: 1px solid #ccc;
+}
