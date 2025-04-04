@@ -8,29 +8,18 @@ from dotenv import load_dotenv
 import os
 import re
 
-# Configure logging to only show errors
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
 load_dotenv()
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 class PortfolioConflictAnalyzer:
     def __init__(self):
-        """Initialize the PortfolioConflictAnalyzer with OpenAI API key."""
         openai.api_key = openai_api_key
 
     def _get_company_info(self, ticker: str) -> Dict:
-        """Get company information using yfinance.
-        
-        Args:
-            ticker: The stock ticker symbol
-            
-        Returns:
-            Dict containing company information or empty dict if failed
-        """
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
@@ -46,53 +35,29 @@ class PortfolioConflictAnalyzer:
             return {}
 
     def _clean_json_response(self, content: str) -> str:
-        """Clean and validate JSON response from the model.
-        
-        Args:
-            content: Raw response content from the model
-            
-        Returns:
-            Cleaned JSON string
-        """
-        # Remove markdown code blocks if present
+        # fix messy json from the ai
         if content.startswith("```"):
             content = content.replace("```json", "").replace("```", "").strip()
         
-        # Remove any leading/trailing whitespace
         content = content.strip()
         
-        # Handle multiple opening braces
         if content.startswith("{{"):
             content = content[1:]
         elif content.startswith("{"):
-            # Count opening braces
             open_braces = len(re.findall(r'\{', content))
             close_braces = len(re.findall(r'\}', content))
             
-            # If we have more opening braces than closing, remove the extra ones
             if open_braces > close_braces:
                 content = content[open_braces - close_braces:]
         
-        # Handle multiple closing braces
         if content.endswith("}}"):
             content = content[:-1]
         
-        # Remove any trailing whitespace or newlines
         content = content.rstrip()
         
         return content
 
     def _create_analysis_prompt(self, positions: List[str], company_info: List[Dict]) -> str:
-        """Create a prompt for the GPT model to analyze portfolio conflicts.
-        
-        Args:
-            positions: List of ticker symbols
-            company_info: List of dictionaries containing company information
-            
-        Returns:
-            String containing the formatted prompt
-        """
-        # Format company information for the prompt
         company_details = "\n".join([
             f"{info['ticker']}:\n"
             f"Name: {info['longName']}\n"
@@ -137,20 +102,12 @@ If there are no conflicts, return ONLY:
 }}"""
 
     def analyze_conflicts(self, positions: List[str]) -> Dict:
-        """Analyze a portfolio for conflicts between positions.
-        
-        Args:
-            positions: List of ticker symbols to analyze
-            
-        Returns:
-            Dict containing the analysis results
-        """
+        # where the magic happens
         try:
-            # Get company information for each position
             company_info = []
             for ticker in positions:
                 info = self._get_company_info(ticker)
-                if info:  # Only add if we successfully got the info
+                if info:
                     company_info.append(info)
             
             if not company_info:
@@ -161,7 +118,6 @@ If there are no conflicts, return ONLY:
                     "error": "Failed to get company information"
                 }
             
-            # Create and send prompt to OpenAI
             prompt = self._create_analysis_prompt(positions, company_info)
             
             response = openai.chat.completions.create(
@@ -174,16 +130,13 @@ If there are no conflicts, return ONLY:
                 max_tokens=1000
             )
             
-            # Parse the response
             try:
                 content = response.choices[0].message.content.strip()
                 
-                # Clean the response
                 cleaned_content = self._clean_json_response(content)
                 
                 analysis = json.loads(cleaned_content)
                 
-                # Add metadata
                 analysis["positions"] = positions
                 analysis["analyzed_at"] = datetime.now().isoformat()
                 
@@ -208,25 +161,14 @@ If there are no conflicts, return ONLY:
             }
 
 def analyze_portfolio_conflicts(positions: List[str]) -> Dict:
-    """Convenience function to analyze portfolio conflicts.
-    
-    Args:
-        positions: List of ticker symbols to analyze
-        
-    Returns:
-        Dict containing the analysis results
-    """
+    # just a wrapper
     analyzer = PortfolioConflictAnalyzer()
     return analyzer.analyze_conflicts(positions)
 
 if __name__ == "__main__":
-    # Example usage
     positions = ["MSFT", "TLT"]
     
     if not openai_api_key:
-        print("Error: OpenAI API key not found in environment variables")
         exit(1)
         
     result = analyze_portfolio_conflicts(positions)
-    # Only print the final result
-    print(json.dumps(result, indent=2)) 
