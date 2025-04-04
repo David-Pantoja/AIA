@@ -350,10 +350,3 @@ The analysis can be customized with various options:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
--
-
-TODO
-Make analyze_portfolio.py also a flask app or similar
-Make a frontend that works with the input / output json formats
-The mother of all refactors
