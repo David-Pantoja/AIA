@@ -1,0 +1,604 @@
+{
+  "total_cases": 14,
+  "detailed_results": [
+    {
+      "positions": [
+        "XOM",
+        "CVX",
+        "FSLR"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "XOM",
+              "FSLR"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Investing in Exxon Mobil Corporation (XOM) and First Solar, Inc. (FSLR) represents a conflict between fossil fuel investments and renewable energy investments, as XOM is heavily involved in oil and gas extraction while FSLR focuses on solar energy solutions."
+          },
+          {
+            "positions": [
+              "CVX",
+              "FSLR"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Similar to XOM, Chevron Corporation (CVX) operates in the fossil fuel sector through oil and gas exploration and production, while FSLR is dedicated to renewable solar energy, creating a conflict in the portfolio's energy sector exposure."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "XOM",
+              "FSLR"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "XOM represents a fossil fuel company, while FSLR is in the renewable energy sector. Investing in both suggests a lack of alignment in energy strategy."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "TLT",
+        "TBT",
+        "BOND"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "TLT",
+              "TBT"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "TLT is a long position in U.S. Treasury bonds, which benefits from falling interest rates, while TBT is a short position that profits from rising interest rates. This creates a direct conflict in investment strategy."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "TLT",
+              "TBT"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "TLT is a long position in U.S. Treasuries, which benefits from falling interest rates, while TBT is a leveraged short position that profits when interest rates rise."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "GLD",
+        "GLL",
+        "GDX"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "GLD",
+              "GLL"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "GLD is a long position in gold, while GLL is a short position betting against gold prices. This creates a direct conflict in directional exposure to the gold market."
+          },
+          {
+            "positions": [
+              "GLL",
+              "GDX"
+            ],
+            "reason": "Direct hedging contradictions",
+            "explanation": "GLL seeks to profit from a decline in gold prices, whereas GDX, which invests in gold mining companies, typically benefits from rising gold prices. Holding both creates a contradiction in expected performance based on gold price movements."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "GLD",
+              "GLL"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "GLD is a long position in gold, while GLL is designed to provide the inverse performance of gold, creating a direct conflict in directional exposure."
+          },
+          {
+            "positions": [
+              "GLD",
+              "GDX"
+            ],
+            "reason": "Factor exposure conflicts",
+            "explanation": "GLD represents a direct investment in gold bullion, whereas GDX invests in gold mining companies, which could have different risk profiles and factors affecting their performance."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "VTV",
+        "VUG",
+        "SPHB"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "VTV",
+              "VUG"
+            ],
+            "reason": "Factor exposure conflicts",
+            "explanation": "VTV focuses on value stocks while VUG focuses on growth stocks. Investing in both may dilute the intended exposure to a specific investment style."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "VTV",
+              "VUG"
+            ],
+            "reason": "Factor exposure conflicts",
+            "explanation": "VTV focuses on value stocks while VUG invests in growth stocks, creating a conflict in factor exposure."
+          },
+          {
+            "positions": [
+              "SPHB",
+              "VTV"
+            ],
+            "reason": "Volatility contradictions",
+            "explanation": "SPHB targets high beta stocks, which are typically more volatile, while VTV invests in more stable value stocks, leading to a contradiction in risk profile."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "UUP",
+        "ELD",
+        "EEM"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "UUP",
+              "EEM"
+            ],
+            "reason": "Currency contradictions",
+            "explanation": "UUP is a fund that benefits from a strengthening US dollar, while EEM invests in emerging market equities that may weaken when the dollar strengthens, leading to potential losses."
+          },
+          {
+            "positions": [
+              "UUP",
+              "ELD"
+            ],
+            "reason": "Currency contradictions",
+            "explanation": "UUP's focus on a strong US dollar is at odds with ELD's investment in local currencies of emerging markets, which can be negatively affected by a strong dollar."
+          },
+          {
+            "positions": [
+              "ELD",
+              "EEM"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "ELD focuses on local debt in emerging markets, while EEM focuses on equities in the same markets. If local currencies depreciate, it can negatively impact both positions but in different ways, leading to conflicting outcomes."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "UUP",
+              "EEM"
+            ],
+            "reason": "Currency contradictions",
+            "explanation": "UUP is a long position on the US dollar, while EEM represents emerging market equities that may be negatively impacted by a strong dollar, as it can lead to currency depreciation in those markets."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "VIX",
+        "SVXY",
+        "SPY"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "SVXY",
+              "SPY"
+            ],
+            "reason": "Volatility contradictions",
+            "explanation": "SVXY seeks to profit from a decrease in volatility, while SPY is an investment in the S&P 500, which generally experiences higher volatility during market downturns. Holding both positions creates a conflict as they have opposing market outlooks regarding volatility."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "VIX",
+              "SVXY"
+            ],
+            "reason": "Volatility contradictions",
+            "explanation": "VIX is a measure of market volatility, while SVXY is a leveraged ETF that bets against volatility. Holding both positions creates a direct conflict as they have opposing views on market volatility."
+          },
+          {
+            "positions": [
+              "SVXY",
+              "SPY"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "SVXY is designed to profit from falling volatility, which typically occurs during stable or bullish market conditions. SPY, on the other hand, is a long position in the S&P 500 index, which may not align with a strategy that profits from a decline in volatility."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "RWR",
+        "DRV",
+        "REGL"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "RWR",
+              "DRV"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "RWR is a long position in real estate securities, while DRV is an inverse ETF that seeks to profit from declines in the same sector, creating a contradiction in investment direction."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "RWR",
+              "DRV"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "RWR is a REIT ETF that benefits from rising real estate prices, while DRV is an inverse ETF that profits from declining real estate prices, creating a direct conflict in market direction."
+          },
+          {
+            "positions": [
+              "RWR",
+              "REGL"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "RWR focuses on real estate investment trusts, whereas REGL invests in small-cap growth stocks, which can lead to sector exposure conflicts as they respond differently to economic changes."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "VIXY",
+        "TQQQ",
+        "TMF"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "VIXY",
+              "TQQQ"
+            ],
+            "reason": "Volatility contradictions",
+            "explanation": "VIXY provides exposure to market volatility, while TQQQ is designed to amplify the returns of the Nasdaq-100, which typically performs well in stable or bullish markets. Holding both can create a conflict as VIXY gains when the market is declining, while TQQQ is leveraged for upward movement."
+          },
+          {
+            "positions": [
+              "TQQQ",
+              "TMF"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "TQQQ is a leveraged ETF that aims to gain from rising equity markets, while TMF focuses on long-term U.S. Treasury bonds, which often appreciate when equity markets decline or during periods of economic uncertainty. Investing in both can lead to conflicting outcomes based on market movements."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "TQQQ",
+              "TMF"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "TQQQ is a leveraged ETF that bets on the growth of the stock market, while TMF is a long-term treasury bond ETF that typically benefits from a decline in interest rates. Investing in both positions creates a conflict, as TQQQ would perform poorly if interest rates rise, which is often associated with a declining stock market."
+          },
+          {
+            "positions": [
+              "VIXY",
+              "TQQQ"
+            ],
+            "reason": "Volatility contradictions",
+            "explanation": "VIXY is designed to profit from increases in market volatility, while TQQQ seeks to amplify gains in a rising market. Holding both positions creates a conflict, as an increase in market volatility usually correlates with a declining stock market, which would negatively impact TQQQ's performance."
+          },
+          {
+            "positions": [
+              "VIXY",
+              "TMF"
+            ],
+            "reason": "Volatility contradictions",
+            "explanation": "VIXY profits from rising volatility, which generally occurs during market downturns. TMF, being a long-term treasury bond ETF, typically gains during such times. However, holding both could indicate conflicting strategies towards market conditions."
+          },
+          {
+            "positions": [
+              "TQQQ",
+              "TMF"
+            ],
+            "reason": "Leveraged ETF time decay conflicts",
+            "explanation": "TQQQ is a leveraged ETF that can suffer from time decay due to its daily rebalancing nature, while TMF, if held long-term, would not be impacted by this effect. This could lead to a conflicting performance outlook over time."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "VOO",
+        "VTI",
+        "VXUS"
+      ],
+      "known_has_conflicts": false,
+      "full_analysis": {
+        "has_conflicts": false,
+        "correct": true,
+        "conflicts": []
+      },
+      "ticker_analysis": {
+        "has_conflicts": false,
+        "correct": true,
+        "conflicts": []
+      }
+    },
+    {
+      "positions": [
+        "AAPL",
+        "MSFT",
+        "GOOGL"
+      ],
+      "known_has_conflicts": false,
+      "full_analysis": {
+        "has_conflicts": false,
+        "correct": true,
+        "conflicts": []
+      },
+      "ticker_analysis": {
+        "has_conflicts": false,
+        "correct": true,
+        "conflicts": []
+      }
+    },
+    {
+      "positions": [
+        "AGG",
+        "MUB",
+        "VTIP"
+      ],
+      "known_has_conflicts": false,
+      "full_analysis": {
+        "has_conflicts": false,
+        "correct": true,
+        "conflicts": []
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": false,
+        "conflicts": [
+          {
+            "positions": [
+              "AGG",
+              "VTIP"
+            ],
+            "reason": "Directional conflicts",
+            "explanation": "AGG is a broad bond market ETF, typically sensitive to interest rate changes, while VTIP is specifically focused on TIPS, which are designed to protect against inflation. Holding both could create a conflict in view as one may bet against rising interest rates while the other is positioned to benefit from inflation."
+          },
+          {
+            "positions": [
+              "MUB",
+              "VTIP"
+            ],
+            "reason": "Inflation outlook contradictions",
+            "explanation": "MUB invests in municipal bonds, which may not offer inflation protection, while VTIP specifically targets TIPS that provide a hedge against inflation. Investing in both may signal contradictory views on the inflation outlook."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "VIG",
+        "SCHD",
+        "HDV"
+      ],
+      "known_has_conflicts": false,
+      "full_analysis": {
+        "has_conflicts": false,
+        "correct": true,
+        "conflicts": []
+      },
+      "ticker_analysis": {
+        "has_conflicts": false,
+        "correct": true,
+        "conflicts": []
+      }
+    },
+    {
+      "positions": [
+        "CHWY",
+        "WOOF",
+        "FRPT",
+        "BYND"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "CHWY",
+              "WOOF"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Both Chewy, Inc. and Petco Health and Wellness Company, Inc. operate in the pet industry, specifically in e-commerce and pet health services, creating competition in the same market."
+          },
+          {
+            "positions": [
+              "CHWY",
+              "FRPT"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Chewy, Inc. and Freshpet, Inc. both focus on pet products, particularly pet food. This overlapping focus could dilute investment exposure within the same sector."
+          },
+          {
+            "positions": [
+              "WOOF",
+              "FRPT"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Petco Health and Wellness Company and Freshpet both provide goods and services related to pet health and nutrition, leading to potential competition and sector concentration."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "CHWY",
+              "WOOF"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "CHWY (Chewy, Inc.) is primarily focused on e-commerce and pet supplies, while WOOF (Petco Health and Wellness Company, Inc.) operates in the brick-and-mortar pet retail space. Investing in both could indicate a conflict in strategy between supporting traditional retail versus online markets."
+          },
+          {
+            "positions": [
+              "FRPT",
+              "BYND"
+            ],
+            "reason": "Factor exposure conflicts",
+            "explanation": "FRPT (Freshpet, Inc.) is generally considered a growth stock in the pet food industry, while BYND (Beyond Meat, Inc.) is also a growth-focused company in the plant-based food sector. Holding both may expose the portfolio to similar growth risks, leading to potential overlap in performance and exposure to market sentiment."
+          }
+        ]
+      }
+    },
+    {
+      "positions": [
+        "ZG",
+        "RDFN",
+        "OPEN",
+        "EXPI"
+      ],
+      "known_has_conflicts": true,
+      "full_analysis": {
+        "has_conflicts": true,
+        "correct": true,
+        "conflicts": [
+          {
+            "positions": [
+              "ZG",
+              "RDFN"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Both Zillow Group, Inc. and Redfin Corporation operate in the residential real estate brokerage and marketplace sector, which may lead to competition rather than complementary investment."
+          },
+          {
+            "positions": [
+              "ZG",
+              "OPEN"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Zillow Group, Inc. and Opendoor Technologies Inc. both function within the residential real estate transaction sector, potentially creating a conflict as they offer overlapping services to consumers."
+          },
+          {
+            "positions": [
+              "RDFN",
+              "OPEN"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Redfin Corporation and Opendoor Technologies Inc. are both engaged in residential real estate transactions, leading to competitive rather than synergistic investment positions."
+          },
+          {
+            "positions": [
+              "ZG",
+              "EXPI"
+            ],
+            "reason": "Sector contradictions",
+            "explanation": "Zillow Group, Inc. and eXp World Holdings, Inc. both provide real estate brokerage services, which may cause conflict as they operate in similar markets and could impact each other's performance."
+          }
+        ]
+      },
+      "ticker_analysis": {
+        "has_conflicts": false,
+        "correct": false,
+        "conflicts": []
+      }
+    }
+  ],
+  "summary": {
+    "full_analyzer": {
+      "correct": 14,
+      "incorrect": 0,
+      "accuracy": 100.0
+    },
+    "ticker_only": {
+      "correct": 12,
+      "incorrect": 2,
+      "accuracy": 85.71428571428571
+    }
+  },
+  "evaluated_at": "2025-04-04T00:12:05.991763"
+}

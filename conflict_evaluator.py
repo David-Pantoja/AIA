@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 import os
 from portfolio_conflict_analyzer import analyze_portfolio_conflicts
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# set up some basic logging
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
+# environment setup
 load_dotenv()
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -19,26 +19,19 @@ if not openai_api_key:
     raise ValueError("OpenAI API key not found in environment variables")
 
 def load_conflicted_portfolios() -> List[Dict]:
-    """Load the known conflicted portfolios from JSON file."""
+    # load our test cases
     try:
-        with open('conflicted_portfolios.json', 'r') as f:
+        with open('conflict_eval_input.json', 'r') as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Error loading conflicted portfolios: {e}")
         return []
 
 def analyze_tickers_only(tickers: List[str]) -> Dict:
-    """Analyze portfolio conflicts using only ticker symbols.
-    
-    Args:
-        tickers: List of ticker symbols
-        
-    Returns:
-        Dict containing the analysis results
-    """
+    # simple version that only uses ticker symbols
     try:
         response = openai.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini-2024-07-18",
             messages=[
                 {"role": "system", "content": "You are a portfolio analysis expert. Respond ONLY with valid JSON, no additional text or explanation."},
                 {"role": "user", "content": f"""Analyze these portfolio positions for potential conflicts: {', '.join(tickers)}
@@ -83,8 +76,7 @@ If there are no conflicts, return ONLY:
         return {"has_conflicts": False, "conflicts": [], "error": str(e)}
 
 def evaluate_analyzer() -> Dict:
-    """Evaluate the portfolio conflict analyzer against known conflicts."""
-    # Load known conflicts
+    # check our analyzer against known test cases
     known_conflicts = load_conflicted_portfolios()
     if not known_conflicts:
         return {"error": "Failed to load known conflicts"}
@@ -98,20 +90,16 @@ def evaluate_analyzer() -> Dict:
         }
     }
     
-    # Evaluate each case
     for case in known_conflicts:
         positions = case["positions"]
         known_has_conflicts = case.get("has_conflict", True)  # Default to True for backward compatibility
         
-        # Get results from both methods
         full_analysis = analyze_portfolio_conflicts(positions)
         ticker_analysis = analyze_tickers_only(positions)
         
-        # Compare results
         full_correct = full_analysis["has_conflicts"] == known_has_conflicts
         ticker_correct = ticker_analysis["has_conflicts"] == known_has_conflicts
         
-        # Update summary counts
         if full_correct:
             results["summary"]["full_analyzer"]["correct"] += 1
         else:
@@ -122,7 +110,6 @@ def evaluate_analyzer() -> Dict:
         else:
             results["summary"]["ticker_only"]["incorrect"] += 1
         
-        # Store detailed results
         results["detailed_results"].append({
             "positions": positions,
             "known_has_conflicts": known_has_conflicts,
@@ -138,7 +125,7 @@ def evaluate_analyzer() -> Dict:
             }
         })
     
-    # Calculate accuracy percentages
+    # calc stats
     total = results["total_cases"]
     results["summary"]["full_analyzer"]["accuracy"] = (
         results["summary"]["full_analyzer"]["correct"] / total * 100
@@ -147,44 +134,14 @@ def evaluate_analyzer() -> Dict:
         results["summary"]["ticker_only"]["correct"] / total * 100
     )
     
-    # Add timestamp
     results["evaluated_at"] = datetime.now().isoformat()
     
     return results
 
 if __name__ == "__main__":
-    # Run evaluation
     results = evaluate_analyzer()
     
-    # Print summary
-    print("\nEvaluation Summary:")
-    print("-" * 50)
-    print(f"Total cases evaluated: {results['total_cases']}")
-    print("\nFull Analyzer Results:")
-    print(f"Correct: {results['summary']['full_analyzer']['correct']}")
-    print(f"Incorrect: {results['summary']['full_analyzer']['incorrect']}")
-    print(f"Accuracy: {results['summary']['full_analyzer']['accuracy']:.2f}%")
-    print("\nTicker-Only Analysis Results:")
-    print(f"Correct: {results['summary']['ticker_only']['correct']}")
-    print(f"Incorrect: {results['summary']['ticker_only']['incorrect']}")
-    print(f"Accuracy: {results['summary']['ticker_only']['accuracy']:.2f}%")
-    
-    # Print detailed results for incorrect cases
-    print("\nDetailed Results for Incorrect Cases:")
-    print("-" * 50)
-    for case in results["detailed_results"]:
-        if not case["full_analysis"]["correct"] or not case["ticker_analysis"]["correct"]:
-            print(f"\nPositions: {', '.join(case['positions'])}")
-            print(f"Known has conflicts: {case['known_has_conflicts']}")
-            print("Full Analysis:")
-            print(f"  Has conflicts: {case['full_analysis']['has_conflicts']}")
-            print(f"  Correct: {case['full_analysis']['correct']}")
-            print("Ticker Analysis:")
-            print(f"  Has conflicts: {case['ticker_analysis']['has_conflicts']}")
-            print(f"  Correct: {case['ticker_analysis']['correct']}")
-    
-    # Save full results to file
-    output_file = f"evaluation_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    # save results to file for later
+    output_file = f"conflict_eval_output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(output_file, 'w') as f:
-        json.dump(results, f, indent=2)
-    print(f"\nFull results saved to: {output_file}") 
+        json.dump(results, f, indent=2) 
