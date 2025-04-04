@@ -1,65 +1,61 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-# Import talib conditionally so we don't fail if it's not available
-try:
-    import talib
-    TALIB_AVAILABLE = True
-except ImportError:
-    TALIB_AVAILABLE = False
-    print("TA-Lib not available. Using pandas for technical indicators.")
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from cachetools import TTLCache, cached
 import logging
 import requests
 import time
+# weird import stuff
+try:
+    import talib
+    TALIB_AVAILABLE = True
+except ImportError:
+    TALIB_AVAILABLE = False
+    print("TA-Lib not available. Using pandas for technical indicators.")
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 class StockDataFetcher:
     def __init__(self):
-        # Initialize caches with 1-hour TTL
+        # caching !
         self.price_cache = TTLCache(maxsize=100, ttl=3600)
         self.ratings_cache = TTLCache(maxsize=100, ttl=3600)
         self.indicators_cache = TTLCache(maxsize=100, ttl=3600)
 
     def _get_ticker(self, ticker: str) -> Optional[yf.Ticker]:
-        """Get a yfinance Ticker object with error handling."""
         try:
             return yf.Ticker(ticker)
         except Exception as e:
+            # sometimes yfinance doesn't have certain tickers
             logger.error(f"Error fetching ticker {ticker}: {str(e)}")
             return None
 
     @cached(cache=TTLCache(maxsize=100, ttl=3600))
     def get_historical_prices(self, ticker: str, start_date: str, end_date: str) -> Dict:
-        """Fetch historical price data for a given ticker."""
         try:
             t = self._get_ticker(ticker)
             if not t:
                 return {}
 
-            # Fetch historical data directly using string dates (like in tmp.py)
             hist = t.history(
                 start=start_date,
                 end=end_date,
-                interval="1d",        # Daily data
-                auto_adjust=True,     # Auto-adjust OHLC
-                actions=True,         # Include dividends and splits
-                back_adjust=True,     # Back-adjust data to mimic true historical prices
-                repair=True,          # Detect and repair currency unit mixups
-                rounding=False,       # Keep precision as suggested by Yahoo
-                timeout=20            # Longer timeout for reliability
+                interval="1d",
+                auto_adjust=True,
+                actions=True,
+                back_adjust=True,
+                repair=True,
+                rounding=False,
+                timeout=20
             )
             
             if hist.empty:
                 logger.warning(f"No historical data found for {ticker}")
                 return {}
 
-            # Convert to dictionary format
             return {
                 "ticker": ticker,
                 "dates": hist.index.strftime("%Y-%m-%d").tolist(),
@@ -75,19 +71,16 @@ class StockDataFetcher:
 
     @cached(cache=TTLCache(maxsize=100, ttl=3600))
     def get_analyst_ratings(self, ticker: str, cutoff_date: Optional[datetime] = None) -> Dict:
-        """Fetch analyst ratings and price targets for a given ticker."""
+        """fetch analyst ratings and price targets for a given ticker."""
         max_retries = 3
-        retry_delay = 5  # Base delay in seconds
+        retry_delay = 5  # base delay in seconds
         
-        print(f"DEBUG: Starting get_analyst_ratings for {ticker} (cutoff_date: {cutoff_date})")
-        rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}  # Initialize with default values
+        rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}  # initialize with default values
         
         for attempt in range(max_retries):
             try:
-                print(f"DEBUG: Attempt {attempt+1}/{max_retries} for {ticker}")
                 t = self._get_ticker(ticker)
                 if not t:
-                    print(f"DEBUG: No ticker object returned for {ticker}")
                     return {
                         "ticker": ticker,
                         "mean_target": None,
@@ -106,92 +99,62 @@ class StockDataFetcher:
                         }
                     }
 
-                # Get analyst recommendations
-                print(f"DEBUG: Getting recommendations for {ticker}")
                 recommendations = t.get_recommendations()
                 latest_rating = None
                 latest_target = None
-                
-                print(f"DEBUG: Recommendations type: {type(recommendations)}, empty: {recommendations is None or recommendations.empty if recommendations is not None else True}")
 
                 if recommendations is not None and not recommendations.empty:
-                    print(f"DEBUG: Processing recommendations for {ticker}, shape: {recommendations.shape}")
-                    # Filter recommendations by cutoff date if provided
                     if cutoff_date:
-                        print(f"DEBUG: Filtering by cutoff date: {cutoff_date}")
-                        # Convert cutoff_date to pandas Timestamp for comparison
-                        # Make sure it's timezone naive if the recommendations index is naive
                         cutoff_ts = pd.Timestamp(cutoff_date)
                         
-                        # Safely handle timezone comparison with proper type checking
                         if not recommendations.empty:
                             idx_tzinfo = getattr(recommendations.index[0], 'tzinfo', None)
                             cutoff_tzinfo = getattr(cutoff_ts, 'tzinfo', None)
                             
-                            # Synchronize timezone info
                             if idx_tzinfo is None and cutoff_tzinfo is not None:
                                 cutoff_ts = cutoff_ts.replace(tzinfo=None)
                             elif idx_tzinfo is not None and cutoff_tzinfo is None:
                                 try:
                                     cutoff_ts = cutoff_ts.tz_localize(idx_tzinfo)
                                 except:
-                                    # If localization fails, make both naive
                                     cutoff_ts = cutoff_ts.replace(tzinfo=None)
                                     
-                        # Use scalar comparison for recommendations filtering
                         filtered_rows = []
                         for idx, row in recommendations.iterrows():
                             try:
                                 if idx <= cutoff_ts:
                                     filtered_rows.append(row)
                             except TypeError:
-                                # If comparison fails, convert to string and compare dates
                                 idx_date = str(idx).split()[0] if hasattr(idx, '__str__') else ''
                                 cutoff_date_str = cutoff_ts.strftime('%Y-%m-%d')
                                 if idx_date <= cutoff_date_str:
                                     filtered_rows.append(row)
                                     
                         if filtered_rows:
-                            # Create new DataFrame with filtered rows
                             try:
                                 recommendations = pd.DataFrame(filtered_rows, index=[r.name for r in filtered_rows])
                             except:
-                                # Fallback if r.name is not available
                                 recommendations = pd.DataFrame(filtered_rows)
                         else:
                             recommendations = pd.DataFrame()
-                        
-                        print(f"DEBUG: After filtering: recommendations empty: {recommendations.empty if recommendations is not None else True}")
                     
-                    # Calculate rating counts from the recommendations DataFrame
-                    # Check if DataFrame has required columns
-                    print(f"DEBUG: Recommendations columns: {recommendations.columns.tolist() if hasattr(recommendations, 'columns') else 'no columns attribute'}")
                     if hasattr(recommendations, 'columns') and not recommendations.empty:
                         required_columns = ["buy", "strongBuy", "hold", "sell", "strongSell"]
                         missing_columns = [col for col in required_columns if col not in recommendations.columns]
                         if missing_columns:
-                            print(f"DEBUG: Missing columns: {missing_columns}")
-                            # Initialize counts with zeros if columns are missing
                             rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
                         else:
-                            # Weight strongBuy and strongSell more heavily
-                            print(f"DEBUG: Computing rating counts")
                             try:
                                 rating_counts = {
                                     "Buy": int(recommendations["buy"].sum() + recommendations["strongBuy"].sum() * 1.5),
                                     "Hold": int(recommendations["hold"].sum()),
                                     "Sell": int(recommendations["sell"].sum() + recommendations["strongSell"].sum() * 1.5)
                                 }
-                                print(f"DEBUG: Rating counts: {rating_counts}")
                             except Exception as e:
-                                print(f"DEBUG: Error calculating rating_counts: {str(e)}")
-                                # Ensure rating_counts is defined in case of error
                                 rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
                     else:
-                        print(f"DEBUG: Using default rating counts (empty/invalid recommendations)")
                         rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
                     
-                    # Get the latest rating with strong recommendations weighted more heavily
                     if not recommendations.empty:
                         try:
                             latest_row = recommendations.iloc[0]
@@ -206,13 +169,10 @@ class StockDataFetcher:
                             elif sell_score > buy_score and sell_score > hold_score:
                                 latest_rating = "Strong Sell" if latest_row["strongSell"] > latest_row["sell"] else "Sell"
                             
-                            # Get the latest target from info
                             latest_target = recommendations.iloc[0].get("priceTarget", None)
-                        except Exception as e:
-                            print(f"DEBUG: Error processing latest rating: {str(e)}")
+                        except Exception:
+                            pass
 
-                # Get price targets and other info
-                print(f"DEBUG: Getting price targets for {ticker}")
                 info = t.info
                 mean_target = None
                 median_target = None
@@ -221,7 +181,6 @@ class StockDataFetcher:
                     mean_target = info.get("targetMeanPrice")
                     median_target = info.get("targetMedianPrice")
 
-                # If no price targets in info, try to calculate from recommendations
                 if (mean_target is None or median_target is None) and recommendations is not None and not recommendations.empty:
                     price_targets = recommendations["Price Target"].dropna() if "Price Target" in recommendations.columns else pd.Series()
                     if not price_targets.empty:
@@ -230,13 +189,9 @@ class StockDataFetcher:
                         if median_target is None:
                             median_target = price_targets.median()
 
-                print(f"DEBUG: Creating return dict for {ticker}")
-                # Verify rating_counts exists before using
                 if 'rating_counts' not in locals() or rating_counts is None:
-                    print(f"DEBUG: rating_counts not defined, using defaults")
                     rating_counts = {"Buy": 0, "Hold": 0, "Sell": 0}
                     
-                # Create return dict with safe access to rating_counts
                 result = {
                     "ticker": ticker,
                     "mean_target": float(mean_target) if mean_target is not None else None,
@@ -254,12 +209,10 @@ class StockDataFetcher:
                         "strongSell": int(recommendations["strongSell"].sum()) if recommendations is not None and not recommendations.empty and "strongSell" in recommendations.columns else 0
                     }
                 }
-                print(f"DEBUG: Successfully returning data for {ticker}")
                 return result
                 
             except requests.exceptions.Timeout:
                 wait_time = retry_delay * (2 ** attempt)
-                print(f"DEBUG: Timeout for {ticker} on attempt {attempt+1}/{max_retries}")
                 logger.warning(f"Timeout fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}, waiting {wait_time} seconds...")
                 if attempt < max_retries - 1:
                     time.sleep(wait_time)
@@ -267,28 +220,22 @@ class StockDataFetcher:
                     
             except requests.exceptions.ConnectionError as e:
                 wait_time = retry_delay * (2 ** attempt)
-                print(f"DEBUG: Connection error for {ticker} on attempt {attempt+1}/{max_retries}: {str(e)}")
                 logger.warning(f"Connection error fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}: {e}, waiting {wait_time} seconds...")
                 if attempt < max_retries - 1:
                     time.sleep(wait_time)
                     continue
                     
             except TypeError as e:
-                # Handle yfinance API errors (like invalid parameters)
-                print(f"DEBUG: TypeError for {ticker}: {str(e)}")
                 logger.warning(f"yfinance API error for {ticker}: {e}")
-                break  # Don't retry for API errors
+                break  # don't retry for API errors
                     
             except Exception as e:
                 wait_time = retry_delay * (2 ** attempt)
-                print(f"DEBUG: General error for {ticker} on attempt {attempt+1}/{max_retries}: {str(e)}, {type(e).__name__}")
                 logger.warning(f"Error fetching analyst ratings for {ticker} on attempt {attempt + 1}/{max_retries}: {e}, waiting {wait_time} seconds...")
                 if attempt < max_retries - 1:
                     time.sleep(wait_time)
                     continue
         
-        # Return default values if all retries failed
-        print(f"DEBUG: All attempts failed for {ticker}, returning default values")
         return {
             "ticker": ticker,
             "mean_target": None,
@@ -308,27 +255,23 @@ class StockDataFetcher:
         }
 
     def get_price_reaction(self, ticker: str, filing_date: str, days_before: int = 5, days_after: int = 5) -> Dict:
-        """Analyze price reaction around a filing date."""
+        """analyze price reaction around a filing date."""
         try:
-            # Convert filing date to datetime (only for calculating date ranges)
             filing_dt = datetime.strptime(filing_date, "%Y-%m-%d")
             
-            # Calculate date range as strings
             start_date = (filing_dt - timedelta(days=days_before)).strftime("%Y-%m-%d")
             end_date = (filing_dt + timedelta(days=days_after)).strftime("%Y-%m-%d")
             
-            # Get historical prices for the period using string dates
             price_data = self.get_historical_prices(ticker, start_date, end_date)
             if not price_data:
                 return {}
 
-            # Calculate price changes
             prices = price_data["close"]
             if not prices:
                 return {}
 
-            pre_filing_price = prices[0]  # First price in the period
-            post_filing_price = prices[-1]  # Last price in the period
+            pre_filing_price = prices[0]  # first price in the period
+            post_filing_price = prices[-1]  # last price in the period
             price_change = ((post_filing_price - pre_filing_price) / pre_filing_price) * 100
 
             return {
@@ -344,12 +287,11 @@ class StockDataFetcher:
             return {}
 
     def calculate_technical_indicators(self, price_data: Dict) -> Dict:
-        """Calculate technical indicators from price data. Falls back to pandas if talib is unavailable."""
+        """calculate technical indicators from price data. falls back to pandas if talib is unavailable."""
         try:
             if not price_data or "close" not in price_data:
                 return {}
 
-            # Convert price data to numpy arrays for calculations
             close = np.array(price_data["close"], dtype=float)
             high = np.array(price_data["high"], dtype=float)
             low = np.array(price_data["low"], dtype=float)
@@ -358,7 +300,6 @@ class StockDataFetcher:
             indicators = {"ticker": price_data["ticker"]}
             
             if TALIB_AVAILABLE:
-                # Use ta-lib if available
                 try:
                     indicators.update({
                         "sma_20": talib.SMA(close, timeperiod=20).tolist(),
@@ -366,7 +307,7 @@ class StockDataFetcher:
                         "sma_200": talib.SMA(close, timeperiod=200).tolist(),
                         "rsi": talib.RSI(close, timeperiod=14).tolist(),
                         "macd": talib.MACD(close)[0].tolist(),  # MACD line
-                        "macd_signal": talib.MACD(close)[1].tolist(),  # Signal line
+                        "macd_signal": talib.MACD(close)[1].tolist(),  # signal line
                         "macd_hist": talib.MACD(close)[2].tolist(),  # MACD histogram
                         "bollinger_bands": {
                             "upper": talib.BBANDS(close)[0].tolist(),
@@ -378,22 +319,18 @@ class StockDataFetcher:
                     return indicators
                 except Exception as e:
                     logger.warning(f"TA-Lib failed, falling back to pandas implementation: {str(e)}")
-                    # Fall through to pandas implementation
             
-            # Use pandas implementation
             logger.info("Using pandas implementation for technical indicators")
             
-            # Convert numpy arrays to pandas Series for easier calculations
             close_series = pd.Series(close)
             
-            # Calculate indicators using pandas
             indicators.update({
                 "sma_20": close_series.rolling(window=20).mean().tolist(),
                 "sma_50": close_series.rolling(window=50).mean().tolist(),
                 "sma_200": close_series.rolling(window=200).mean().tolist(),
             })
             
-            # Calculate RSI
+            # calculate RSI
             delta = close_series.diff()
             gain = delta.where(delta > 0, 0).rolling(window=14).mean()
             loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
@@ -401,7 +338,7 @@ class StockDataFetcher:
             rsi = 100 - (100 / (1 + rs))
             indicators["rsi"] = rsi.tolist()
             
-            # Calculate MACD (12,26,9)
+            # calculate MACD (12,26,9)
             exp1 = close_series.ewm(span=12, adjust=False).mean()
             exp2 = close_series.ewm(span=26, adjust=False).mean()
             macd = exp1 - exp2
@@ -412,7 +349,7 @@ class StockDataFetcher:
             indicators["macd_signal"] = signal.tolist()
             indicators["macd_hist"] = hist.tolist()
             
-            # Calculate Bollinger Bands
+            # calculate bollinger bands
             sma_20 = close_series.rolling(window=20).mean()
             std_20 = close_series.rolling(window=20).std()
             upper_band = sma_20 + (std_20 * 2)
