@@ -1,3 +1,5 @@
+@import 'fonts.css';
+
 body,
 h1,
 h2,
@@ -8,19 +10,39 @@ input,
 label {
   margin: 0;
   padding: 0;
-  font-family: sans-serif;
+  font-family: 'DM Sans', sans-serif;
   box-sizing: border-box;
 }
 
 body {
   background-color: #f4f7f6;
+  font-family: 'DM Sans', sans-serif;
+  
+}
+
+.pattern-background {
+  overflow: auto;
+}
+.pattern-background::before {
+  content: "";
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 250px;
+  background: url('./assets/images/wave.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-attachment: bottom;
+  z-index: -1; 
 }
 
 .App {
-  text-align: center;
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+  text-align: center;
 }
 
 .App-logo {
@@ -35,14 +57,24 @@ body {
 }
 
 .App-header {
-  background-color: #282c34;
-  padding: 20px;
-  color: white;
-  margin-bottom: 30px;
+  text-align: center;
+  padding: 10px;
+  color: #1c1c1c;
+  margin-bottom: 10px;
+  display: inline-flex;
+  text-align: center;
+  
+  & .logo-image {
+    display: flex;
+    align-items: center;
+    align-self: center;
+    height: 1.7em;
+  }
 }
 
 .App-header h1 {
-  font-size: 2em;
+  margin-left: 10px;
+  font-size: 1.7em;
 }
 
 .App-main {
@@ -91,7 +123,7 @@ body {
 }
 
 .controls button {
-  background-color: #61dafb;
+  background-color: #28a745;
   color: #282c34;
   border: none;
   cursor: pointer;
@@ -144,7 +176,7 @@ body {
 }
 
 .App-link {
-  color: #61dafb;
+  color: #28a745;
 }
 
 @keyframes App-logo-spin {
@@ -169,7 +201,7 @@ body {
 
 .portfolio-form h2 {
   color: #282c34;
-  border-bottom: 2px solid #61dafb;
+  border-bottom: 2px solid #28a745;
   padding-bottom: 10px;
   margin-bottom: 20px;
   margin-top: 20px;
@@ -271,9 +303,9 @@ body {
 }
 
 .add-btn {
-  background-color: #28a745;
-  color: white;
-  border: none;
+  background-color: white;
+  color: #28a745;
+  border: 1px solid #28a745;
   padding: 10px 15px;
   border-radius: 4px;
   cursor: pointer;
@@ -284,7 +316,8 @@ body {
 }
 
 .add-btn:hover {
-  background-color: #218838;
+  color: white;
+  background-color: #28a745;
 }
 
 .portfolio-form .controls {
@@ -302,13 +335,13 @@ body {
 }
 
 .portfolio-form .controls button[type="submit"] {
-  background-color: #007bff;
+  background-color: #28a745;
   color: white;
   padding: 12px 20px;
 }
 
 .portfolio-form .controls button[type="submit"]:hover {
-  background-color: #0056b3;
+  background-color: #218838;
 }
 
 .specific-date-input {
@@ -352,7 +385,7 @@ body {
 
 .results-display h2 {
   color: #282c34;
-  border-bottom: 2px solid #61dafb;
+  border-bottom: 2px solid #28a745;
   padding-bottom: 10px;
   margin-bottom: 25px;
   font-size: 1.6em;
@@ -461,22 +494,31 @@ body {
   margin-top: 5px;
 }
 
-.recommendations .action-buy,
-.recommendations li.action-buy .action {
-  background-color: #28a745;
+.recommendations .action-buy {
   border-left: 5px solid #28a745;
 }
-.recommendations .action-hold,
-.recommendations li.action-hold .action {
-  background-color: #ffc107;
+.recommendations .action-hold{
   border-left: 5px solid #ffc107;
-  color: #333;
 }
-.recommendations .action-sell,
-.recommendations li.action-sell .action {
-  background-color: #dc3545;
+.recommendations .action-sell{
   border-left: 5px solid #dc3545;
 }
+
+li.action-buy .action{
+  background-color: #28a745;
+  color: #fff;
+}
+
+li.action-hold .action{
+  background-color: #ffc107;
+  color: #fff;
+}
+
+li.action-sell .action{
+  background-color: #dc3545;
+  color: #fff;
+}
+
 
 .insights-grid {
   display: grid;
@@ -485,7 +527,6 @@ body {
 }
 
 .insight-card {
-  border: 1px solid #ccc;
   border-radius: 6px;
   padding: 20px;
   background-color: #f9f9f9;
@@ -509,7 +550,6 @@ body {
 
 .insight-details details {
   margin-bottom: 10px;
-  border: 1px solid #e0e0e0;
   border-radius: 4px;
   background-color: #fff;
 }
@@ -598,4 +638,28 @@ body {
   white-space: pre-wrap;
   word-wrap: break-word;
   border: 1px solid #ccc;
+}
+
+.dm-sans {
+  font-family: "DM Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 100;
+  font-style: normal;
+}
+
+
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #28a745;
+}
+
+.checkbox-group {
+  align-self: center;
+  padding-top: 30px;
+}
+
+.bullet:before {
+  content: url('./assets/images/bullet.svg');
+  padding-right: 5px;
 }

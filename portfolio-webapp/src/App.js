@@ -110,7 +110,11 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Portfolio Analyzer</h1>
+          <img
+            src="/logo.png"
+            alt="StockKnowledge.AI Logo"
+            className="logo-image"  />
+          <h1>StockKnowledge.AI</h1>
       </header>
       <main className="App-main">
         <form
@@ -120,7 +124,7 @@ function App() {
             analyzePortfolio();
           }}
         >
-          <h2>Portfolio Details</h2>
+          <h2 className="bullet">Portfolio Details</h2>
           <div className="form-section">
             <div className="form-group">
               <label htmlFor="portfolio-name">Name:</label>
@@ -186,7 +190,7 @@ function App() {
             </div>
           </div>
 
-          <h2>Configuration</h2>
+          <h2 className="bullet">Configuration</h2>
           <div className="form-section">
             <div className="form-group">
               <label htmlFor="config-quarters">Quarters:</label>
@@ -234,7 +238,7 @@ function App() {
             </div>
           </div>
 
-          <h2>Positions</h2>
+          <h2 className="bullet">Positions</h2>
           <div className="form-section positions-list">
             {positions.map((pos, index) => (
               <div key={pos.id} className="position-item">
@@ -299,7 +303,7 @@ function App() {
 
         {analysisResult && (
           <div className="results-display">
-            <h2>Analysis Results for {portfolioName}</h2>
+            <h2 className="bullet">Analysis Results for {portfolioName}</h2>
 
             {/* Use the new components */}
             <PortfolioSummary
